@@ -1,4 +1,4 @@
-use super::expr::{Expr, FixEq, FixType, VarId};
+use super::eq::{Expr, FixEq, FixType, VarId};
 
 pub fn normalize_sys(eqs: &[FixEq]) -> (Vec<FixEq>, Vec<VarId>) {
     let mut new_eqs = Vec::new();
@@ -10,36 +10,31 @@ pub fn normalize_sys(eqs: &[FixEq]) -> (Vec<FixEq>, Vec<VarId>) {
 }
 
 pub fn normalize_expr(expr: &Expr, fix_type: FixType, out: &mut Vec<FixEq>) -> VarId {
+    let normalize_many = |exprs: &[Expr], out: &mut Vec<FixEq>| {
+        exprs
+            .iter()
+            .map(|expr| Expr::Var(normalize_expr(expr, fix_type, out)))
+            .collect()
+    };
+
     match expr {
         Expr::Var(x) => *x,
         Expr::And(children) => {
             let var = VarId(out.len());
             out.push(FixEq { var, fix_type, expr: Expr::BOT });
-            let new_children = children
-                .iter()
-                .map(|expr| Expr::Var(normalize_expr(expr, fix_type, out)))
-                .collect();
-            out[var.0].expr = Expr::And(new_children);
+            out[var.0].expr = Expr::And(normalize_many(children, out));
             var
         }
         Expr::Or(children) => {
             let var = VarId(out.len());
             out.push(FixEq { var, fix_type, expr: Expr::BOT });
-            let new_children = children
-                .iter()
-                .map(|expr| Expr::Var(normalize_expr(expr, fix_type, out)))
-                .collect();
-            out[var.0].expr = Expr::Or(new_children);
+            out[var.0].expr = Expr::Or(normalize_many(children, out));
             var
         }
         Expr::Fun(fun, args) => {
             let var = VarId(out.len());
             out.push(FixEq { var, fix_type, expr: Expr::And(Vec::new()) });
-            let new_args = args
-                .iter()
-                .map(|expr| Expr::Var(normalize_expr(expr, fix_type, out)))
-                .collect();
-            out[var.0].expr = Expr::Fun(*fun, new_args);
+            out[var.0].expr = Expr::Fun(*fun, normalize_many(args, out));
             var
         }
     }
