@@ -1,6 +1,8 @@
+use std::collections::HashSet;
+
 use super::expr::{Expr, FixEq, FunId, VarId};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BasisId(usize);
 
 pub enum Formula {
@@ -25,6 +27,40 @@ impl Formula {
             Self::Or(c) if c.is_empty() => true,
             _ => false,
         }
+    }
+
+    pub fn next_move(&self) -> Option<Vec<(BasisId, VarId)>> {
+        match self {
+            _ if self.is_false() => None,
+            _ if self.is_true() => Some(Vec::new()),
+            _ => Some(self.build_next_move()),
+        }
+    }
+
+    fn build_next_move(&self) -> Vec<(BasisId, VarId)> {
+        fn build_next_move_inner(f: &Formula, add: &mut impl FnMut(BasisId, VarId)) {
+            match f {
+                Formula::Atom(b, i) => add(*b, *i),
+                Formula::And(children) => {
+                    for f in children {
+                        build_next_move_inner(f, add);
+                    }
+                }
+                Formula::Or(children) => build_next_move_inner(&children[0], add),
+            }
+        }
+
+        let mut out = Vec::new();
+        let mut seen = HashSet::new();
+        build_next_move_inner(self, &mut |b, i| {
+            if seen.insert((b, i)) {
+                out.push((b, i));
+            }
+        });
+
+        // TODO: is it better to sort? If yes, which is the best order?
+        // out.sort_unstable_by_key(|&(b, i)| (i, b));
+        out
     }
 }
 
