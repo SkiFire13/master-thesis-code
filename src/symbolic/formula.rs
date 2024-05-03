@@ -1,6 +1,6 @@
 use super::expr::{Expr, FixEq, FunId, VarId};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BasisId(usize);
 
 pub enum Formula {
