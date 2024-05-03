@@ -4,7 +4,7 @@ use super::expr::{Expr, FixEq, FunId, VarId};
 pub struct BasisId(usize);
 
 pub enum Formula {
-    BasisElem(BasisId, VarId),
+    Atom(BasisId, VarId),
     And(Vec<Formula>),
     Or(Vec<Formula>),
 }
@@ -76,7 +76,7 @@ fn compose_moves(expr: &Expr, b: BasisId, eqs: &[FixEq], moves: &FunsFormulas) -
     };
 
     match expr {
-        Expr::Var(i) => Formula::BasisElem(b, *i),
+        Expr::Var(i) => Formula::Atom(b, *i),
         Expr::And(children) => Formula::And(compose_many(children)),
         Expr::Or(children) => Formula::Or(compose_many(children)),
         Expr::Fun(fun, args) => subst(moves.get(b, *fun), args, eqs, moves),
@@ -92,7 +92,7 @@ fn subst(formula: &Formula, args: &[Expr], eqs: &[FixEq], moves: &FunsFormulas) 
     };
 
     match formula {
-        Formula::BasisElem(b, i) => compose_moves(&args[i.0], *b, eqs, moves),
+        Formula::Atom(b, i) => compose_moves(&args[i.0], *b, eqs, moves),
         Formula::And(children) => Formula::And(subst_many(children)),
         Formula::Or(children) => Formula::Or(subst_many(children)),
     }
@@ -100,32 +100,70 @@ fn subst(formula: &Formula, args: &[Expr], eqs: &[FixEq], moves: &FunsFormulas) 
 
 fn simplify(formula: Formula) -> Formula {
     match formula {
-        Formula::BasisElem(_, _) => formula,
-        Formula::And(children) => {
-            let children = children
-                .into_iter()
-                .map(simplify)
-                .filter(|f| !f.is_true())
-                .map(|f| (!f.is_false()).then_some(f))
-                .collect::<Option<Vec<_>>>();
-            match children {
-                None => Formula::FALSE,
-                Some(children) if children.len() == 1 => children.into_iter().next().unwrap(),
-                Some(children) => Formula::Or(children),
-            }
+        Formula::Atom(_, _) => formula,
+        Formula::And(children) => simplify_and(children.into_iter().map(simplify)),
+        Formula::Or(children) => simplify_or(children.into_iter().map(simplify)),
+    }
+}
+
+fn simplify_and(iter: impl Iterator<Item = Formula>) -> Formula {
+    let children = iter
+        .filter(|f| !f.is_true())
+        .map(|f| (!f.is_false()).then_some(f))
+        .collect::<Option<Vec<_>>>();
+    match children {
+        None => Formula::FALSE,
+        Some(children) if children.len() == 1 => children.into_iter().next().unwrap(),
+        Some(children) => Formula::And(children),
+    }
+}
+
+fn simplify_or(iter: impl Iterator<Item = Formula>) -> Formula {
+    let children = iter
+        .filter(|f| !f.is_false())
+        .map(|f| (!f.is_true()).then_some(f))
+        .collect::<Option<Vec<_>>>();
+    match children {
+        None => Formula::TRUE,
+        Some(children) if children.len() == 1 => children.into_iter().next().unwrap(),
+        Some(children) => Formula::Or(children),
+    }
+}
+
+#[allow(unused)]
+mod compose_simplify_merged {
+    use super::*;
+
+    fn compose_moves(expr: &Expr, b: BasisId, eqs: &[FixEq], moves: &FunsFormulas) -> Formula {
+        match expr {
+            Expr::Var(i) => Formula::Atom(b, *i),
+            Expr::And(children) => simplify_and(
+                children
+                    .iter()
+                    .map(|expr| compose_moves(expr, b, eqs, moves)),
+            ),
+            Expr::Or(children) => simplify_or(
+                children
+                    .iter()
+                    .map(|expr| compose_moves(expr, b, eqs, moves)),
+            ),
+            Expr::Fun(fun, args) => subst(moves.get(b, *fun), args, eqs, moves),
         }
-        Formula::Or(children) => {
-            let children = children
-                .into_iter()
-                .map(simplify)
-                .filter(|f| !f.is_false())
-                .map(|f| (!f.is_true()).then_some(f))
-                .collect::<Option<Vec<_>>>();
-            match children {
-                None => Formula::TRUE,
-                Some(children) if children.len() == 1 => children.into_iter().next().unwrap(),
-                Some(children) => Formula::Or(children),
-            }
+    }
+
+    fn subst(formula: &Formula, args: &[Expr], eqs: &[FixEq], moves: &FunsFormulas) -> Formula {
+        match formula {
+            Formula::Atom(b, i) => compose_moves(&args[i.0], *b, eqs, moves),
+            Formula::And(children) => simplify_and(
+                children
+                    .iter()
+                    .map(|formula| subst(formula, args, eqs, moves)),
+            ),
+            Formula::Or(children) => simplify_or(
+                children
+                    .iter()
+                    .map(|formula| subst(formula, args, eqs, moves)),
+            ),
         }
     }
 }
