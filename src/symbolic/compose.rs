@@ -2,15 +2,12 @@ use super::eq::{Expr, FixEq, FunId, VarId};
 use super::formula::{simplify_and, simplify_or, BasisId, Formula};
 
 pub struct FunsFormulas {
-    /// 2D array with BasisId indexing columns and FunId indexing rows.
-    formulas: Vec<Formula>,
-    /// Number of columns / length of a row.
-    basis_count: usize,
+    formulas: Vec<Vec<Formula>>,
 }
 
 impl FunsFormulas {
     pub fn get(&self, basis: BasisId, fun: FunId) -> &Formula {
-        &self.formulas[fun.0 * self.basis_count + basis.0]
+        &self.formulas[fun.0][basis.0]
     }
 }
 
@@ -22,15 +19,15 @@ pub struct EqsFormulas {
 }
 
 impl EqsFormulas {
-    pub fn compose(eqs: &[FixEq], raw_moves: &FunsFormulas) -> Self {
+    pub fn compose(eqs: &[FixEq], raw_moves: &FunsFormulas, basis_count: usize) -> Self {
         let mut moves = Vec::with_capacity(eqs.len() * raw_moves.formulas.len());
         for eq in eqs {
-            for b in (0..raw_moves.basis_count).map(BasisId) {
+            for b in (0..basis_count).map(BasisId) {
                 moves.push(compose_moves(&eq.expr, b, eqs, raw_moves));
             }
         }
 
-        Self { moves, basis_count: raw_moves.basis_count }
+        Self { moves, basis_count }
     }
 
     pub fn get(&self, b: BasisId, i: VarId) -> &Formula {
