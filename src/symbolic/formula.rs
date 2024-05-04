@@ -27,11 +27,11 @@ impl Formula {
         }
     }
 
-    pub fn simplify(&self) -> Self {
+    pub fn simplify(self) -> Self {
         match self {
-            Formula::Atom(b, i) => Formula::Atom(*b, *i),
-            Formula::And(children) => simplify_and(children.iter().map(Self::simplify)),
-            Formula::Or(children) => simplify_or(children.iter().map(Self::simplify)),
+            Formula::Atom(b, i) => Formula::Atom(b, i),
+            Formula::And(children) => simplify_and(children.into_iter().map(Self::simplify)),
+            Formula::Or(children) => simplify_or(children.into_iter().map(Self::simplify)),
         }
     }
 }
