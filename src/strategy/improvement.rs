@@ -90,6 +90,7 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
     let mut evaluated: Set<NodeId> = Set::new();
     let mut profiles = vec![PlayProfile::default(); graph.node_count()];
 
+    // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
     for w in graph.nodes_sorted_by_reward() {
         // Ignore already evaluated nodes
         if evaluated.contains(&w) {
@@ -101,13 +102,10 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
         let predecessors_of = |n| graph.predecessors_of(n).filter(|v| !evaluated.contains(v));
 
         // Find all nodes v <= w that can reach w
-        let mut reach_stack = predecessors_of(w).collect::<Vec<_>>();
-        let mut reach_set = Set::new();
-        while let Some(v) = reach_stack.pop() {
-            if graph.relevance_of(v) <= w_relevance && reach_set.insert(v) {
-                reach_stack.extend(predecessors_of(v));
-            }
-        }
+        let (_, reach_set) = reach(w, |u| {
+            // TODO: is this really necessary?
+            predecessors_of(u).filter(|&v| graph.relevance_of(v) <= w_relevance)
+        });
 
         // If w cannot reach itself it cannot create a loop, ignore it.
         if !reach_set.contains(&w) {
@@ -115,14 +113,7 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
         }
 
         // Find all nodes that can reach w.
-        let mut reach_stack = predecessors_of(w).collect::<Vec<_>>();
-        let (mut k_nodes, mut k_set) = (Vec::new(), Set::new());
-        while let Some(v) = reach_stack.pop() {
-            if k_set.insert(v) {
-                k_nodes.push(v);
-                reach_stack.extend(predecessors_of(v));
-            }
-        }
+        let (mut k_nodes, _) = reach(w, predecessors_of);
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
@@ -223,14 +214,7 @@ fn prevent_paths(
     };
 
     // Find nodes reachable from w in the graph excluding u.
-    let mut reach_stack = predecessors_of(w).collect::<Vec<_>>();
-    let (mut u_nodes, mut u_set) = (Vec::new(), Set::new());
-    while let Some(v) = reach_stack.pop() {
-        if v != u && u_set.insert(v) {
-            u_nodes.push(v);
-            reach_stack.extend(predecessors_of(v));
-        }
-    }
+    let (u_nodes, u_set) = reach(w, |v| predecessors_of(v).filter(|&v| v != u));
 
     // Update profiles of those path that must go through u
     for &v in k_nodes.iter().filter(|v| !u_set.contains(v)) {
@@ -264,14 +248,7 @@ fn force_paths(
     };
 
     // Find nodes reachable from w in the graph excluding u.
-    let mut reach_stack = predecessors_of(u).collect::<Vec<_>>();
-    let (mut u_nodes, mut u_set) = (Vec::new(), Set::new());
-    while let Some(v) = reach_stack.pop() {
-        if v != w && u_set.insert(v) {
-            u_nodes.push(v);
-            reach_stack.extend(predecessors_of(v));
-        }
-    }
+    let (u_nodes, u_set) = reach(u, |v| predecessors_of(v).filter(|&v| v != w));
 
     // Update profiles of those path that can go through u
     for &v in k_nodes.iter().filter(|v| u_set.contains(v)) {
@@ -284,4 +261,22 @@ fn force_paths(
             removed_edges.insert((v, next));
         }
     }
+}
+
+fn reach<F, I>(start: NodeId, mut explore: F) -> (Vec<NodeId>, Set<NodeId>)
+where
+    F: FnMut(NodeId) -> I,
+    I: IntoIterator<Item = NodeId>,
+{
+    let mut stack = Vec::from_iter(explore(start));
+    let (mut nodes, mut set) = (Vec::new(), Set::new());
+
+    while let Some(node) = stack.pop() {
+        if set.insert(node) {
+            nodes.push(node);
+            stack.extend(explore(node));
+        }
+    }
+
+    (nodes, set)
 }
