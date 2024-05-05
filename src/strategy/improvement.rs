@@ -91,17 +91,18 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
     let mut profiles = vec![PlayProfile::default(); graph.node_count()];
 
     // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
+    // At each iteration we will try to fix all the loops that go through w, if w is not
+    // already part of one.
     for w in graph.nodes_sorted_by_reward() {
         // Ignore already evaluated nodes
         if evaluated.contains(&w) {
             continue;
         }
 
-        let w_relevance = graph.relevance_of(w);
-
         let predecessors_of = |n| graph.predecessors_of(n).filter(|v| !evaluated.contains(v));
 
         // Find all nodes v <= w that can reach w
+        let w_relevance = graph.relevance_of(w);
         let (_, reach_set) = reach(w, |u| {
             // TODO: is this really necessary?
             predecessors_of(u).filter(|&v| graph.relevance_of(v) <= w_relevance)
@@ -205,16 +206,15 @@ fn prevent_paths(
     evaluated: &Set<NodeId>,
     removed_edges: &mut Set<(NodeId, NodeId)>,
 ) {
-    let predecessors_of = |n| {
-        let removed_edges = &removed_edges;
+    // Find nodes reachable from w in the graph excluding u.
+    let (u_nodes, u_set) = reach(w, |n| {
+        let removed_edges = &*removed_edges;
         graph
             .predecessors_of(n)
             .filter(|&v| !evaluated.contains(&v))
             .filter(move |&v| !removed_edges.contains(&(v, n)))
-    };
-
-    // Find nodes reachable from w in the graph excluding u.
-    let (u_nodes, u_set) = reach(w, |v| predecessors_of(v).filter(|&v| v != u));
+            .filter(|&v| v != u)
+    });
 
     // Update profiles of those path that must go through u
     for &v in k_nodes.iter().filter(|v| !u_set.contains(v)) {
@@ -239,16 +239,15 @@ fn force_paths(
     evaluated: &Set<NodeId>,
     removed_edges: &mut Set<(NodeId, NodeId)>,
 ) {
-    let predecessors_of = |n| {
+    // Find nodes reachable from w in the graph excluding u.
+    let (u_nodes, u_set) = reach(u, |n| {
         let removed_edges = &removed_edges;
         graph
             .predecessors_of(n)
             .filter(|&v| !evaluated.contains(&v))
             .filter(move |&v| !removed_edges.contains(&(v, n)))
-    };
-
-    // Find nodes reachable from w in the graph excluding u.
-    let (u_nodes, u_set) = reach(u, |v| predecessors_of(v).filter(|&v| v != w));
+            .filter(|&v| v != w)
+    });
 
     // Update profiles of those path that can go through u
     for &v in k_nodes.iter().filter(|v| u_set.contains(v)) {
