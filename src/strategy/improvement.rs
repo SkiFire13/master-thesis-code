@@ -130,6 +130,23 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
     profiles
 }
 
+/// A restricted graph without some nodes or edges.
+struct RestrictedGraph<'a> {
+    /// The base graph
+    base: &'a Graph,
+    /// Already evaluated nodes, thus excluded from the graph
+    evaluated: &'a Set<NodeId>,
+    /// Edges removed from the graph
+    removed_edges: Set<(NodeId, NodeId)>,
+}
+
+impl<'a> std::ops::Deref for RestrictedGraph<'a> {
+    type Target = &'a Graph;
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
 fn subevaluation(
     graph: &Graph,
     w: NodeId,
@@ -137,8 +154,8 @@ fn subevaluation(
     profiles: &mut [PlayProfile],
     evaluated: &Set<NodeId>,
 ) {
-    // TODO: don't ignore this
-    let mut removed_edges = Set::new();
+    let mut graph = RestrictedGraph { base: graph, evaluated, removed_edges: Set::new() };
+
     let w_relevance = graph.relevance_of(w);
 
     // Sort K by relevance
@@ -157,27 +174,9 @@ fn subevaluation(
         }
 
         if graph.relevance_of(u) % 2 == 0 {
-            // The node is in favour of player 0, avoid ever going through it if possible.
-            prevent_paths(
-                graph,
-                w,
-                u,
-                k_nodes,
-                profiles,
-                evaluated,
-                &mut removed_edges,
-            );
+            prevent_paths(&mut graph, w, u, k_nodes, profiles);
         } else {
-            // The node is in favour of player 1, try to go through it if possible.
-            force_paths(
-                graph,
-                w,
-                u,
-                k_nodes,
-                profiles,
-                evaluated,
-                &mut removed_edges,
-            )
+            force_paths(&mut graph, w, u, k_nodes, profiles)
         }
     }
 
@@ -198,20 +197,18 @@ fn subevaluation(
 
 /// Prevent any path that can go through u from doing so.
 fn prevent_paths(
-    graph: &Graph,
+    graph: &mut RestrictedGraph,
     w: NodeId,
     u: NodeId,
     k_nodes: &[NodeId],
     profiles: &mut [PlayProfile],
-    evaluated: &Set<NodeId>,
-    removed_edges: &mut Set<(NodeId, NodeId)>,
 ) {
     // Find nodes reachable from w in the graph excluding u.
     let (u_nodes, u_set) = reach(w, |n| {
-        let removed_edges = &*removed_edges;
+        let removed_edges = &graph.removed_edges;
         graph
             .predecessors_of(n)
-            .filter(|&v| !evaluated.contains(&v))
+            .filter(|&v| !graph.evaluated.contains(&v))
             .filter(move |&v| !removed_edges.contains(&(v, n)))
             .filter(|&v| v != u)
     });
@@ -224,27 +221,25 @@ fn prevent_paths(
     // Remove edges from u_nodes U {u} to V \ U_nodes
     for &v in u_nodes.iter().chain([&u]) {
         for next in graph.successors_of(v).filter(|next| !u_set.contains(next)) {
-            removed_edges.insert((v, next));
+            graph.removed_edges.insert((v, next));
         }
     }
 }
 
 /// Make any path that can go through u do so.
 fn force_paths(
-    graph: &Graph,
+    graph: &mut RestrictedGraph,
     w: NodeId,
     u: NodeId,
     k_nodes: &[NodeId],
     profiles: &mut [PlayProfile],
-    evaluated: &Set<NodeId>,
-    removed_edges: &mut Set<(NodeId, NodeId)>,
 ) {
     // Find nodes reachable from w in the graph excluding u.
     let (u_nodes, u_set) = reach(u, |n| {
-        let removed_edges = &removed_edges;
+        let removed_edges = &graph.removed_edges;
         graph
             .predecessors_of(n)
-            .filter(|&v| !evaluated.contains(&v))
+            .filter(|&v| !graph.evaluated.contains(&v))
             .filter(move |&v| !removed_edges.contains(&(v, n)))
             .filter(|&v| v != w)
     });
@@ -257,7 +252,7 @@ fn force_paths(
     // Remove edges from u_nodes \ {u} to V \ u_nodes
     for &v in u_nodes.iter().filter(|&&v| v != u) {
         for next in graph.successors_of(v).filter(|next| !u_set.contains(next)) {
-            removed_edges.insert((v, next));
+            graph.removed_edges.insert((v, next));
         }
     }
 }
