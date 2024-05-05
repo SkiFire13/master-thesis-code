@@ -1,2 +1,2 @@
-pub mod solvers;
+pub mod strategy;
 pub mod symbolic;
