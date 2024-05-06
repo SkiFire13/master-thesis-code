@@ -22,7 +22,7 @@ impl Graph {
         todo!()
     }
 
-    fn relevance_of(&self, n: NodeId) -> usize {
+    fn relevance_of(&self, n: NodeId) -> Relevance {
         todo!()
     }
 
@@ -30,6 +30,39 @@ impl Graph {
         todo!();
         [].into_iter()
     }
+}
+
+pub enum Player {
+    P0,
+    P1,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Relevance(usize, NodeId);
+
+impl Relevance {
+    pub fn player(self) -> Player {
+        match self.0 % 2 {
+            0 => Player::P0,
+            _ => Player::P1,
+        }
+    }
+
+    pub fn reward(self) -> Reward {
+        match self.player() {
+            Player::P0 => Reward::P0(self),
+            Player::P1 => Reward::P1(Reverse(self)),
+        }
+    }
+}
+
+// Note: order is important here. Reward in favour of P1 are considered less
+// than rewards in favour of P0. Also, relevance for P1 rewards are considered
+// reversed (bigger relevance is worse for P0, and thus less).
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Reward {
+    P1(Reverse<Relevance>),
+    P0(Relevance),
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,38 +82,41 @@ impl PlayProfile {
     pub fn cmp(&self, other: &PlayProfile, graph: &Graph) -> Ordering {
         // Compare the most relevant vertex of the cycle
         if self.0 != other.0 {
-            let self_rel = graph.relevance_of(self.0);
-            let other_rel = graph.relevance_of(other.0);
-
-            return match (self_rel % 2, other_rel % 2) {
-                // Both in favour of player 0, order is normal
-                (0, 0) => Ord::cmp(&(self_rel, self.0), &(other_rel, other.0)),
-                // Only first in favour of player 0, that's the greatest
-                (0, _) => Ordering::Greater,
-                // Only second in favour of player 0, that's the greatest
-                (_, 0) => Ordering::Less,
-                // Both in favour of player 1, order is reversed
-                (_, _) => Ord::cmp(&(self_rel, self.0), &(other_rel, other.0)).reverse(),
-            };
+            let this_rew = graph.relevance_of(self.0).reward();
+            let that_rew = graph.relevance_of(other.0).reward();
+            return Ord::cmp(&this_rew, &that_rew);
         }
 
-        // Compare the more relevant vertexes visited before the most relevant one.
-        if let Some((&u, &v)) = std::iter::zip(&self.1, &other.1).find(|(u, v)| u != v) {
-            let u_relevance = graph.relevance_of(u);
-            let v_relevance = graph.relevance_of(v);
-
-            return match std::cmp::max(u_relevance, v_relevance) % 2 {
-                // The biggest is in favour of player 0, order is normal.
-                0 => Ord::cmp(&(u_relevance, u), &(v_relevance, v)),
-                // The biggest is in favour of player 1, order is reversed.
-                _ => Ord::cmp(&(u_relevance, u), &(v_relevance, v)).reverse(),
+        // TODO: compare the two lists
+        //  - if they have two elements where they differ, compare their reward;
+        //  - if one has strictly more elements than the other, look at the winning player in that element.
+        let mut this_iter = self.1.iter();
+        let mut that_iter = other.1.iter();
+        loop {
+            return match (this_iter.next(), that_iter.next()) {
+                (None, None) => break,
+                (Some(&u), Some(&v)) if u == v => continue,
+                (Some(&u), Some(&v)) => Ord::cmp(
+                    &graph.relevance_of(u).reward(),
+                    &graph.relevance_of(v).reward(),
+                ),
+                (Some(&u), None) => match graph.relevance_of(u).player() {
+                    Player::P0 => Ordering::Greater,
+                    Player::P1 => Ordering::Less,
+                },
+                (None, Some(&u)) => match graph.relevance_of(u).player() {
+                    Player::P0 => Ordering::Less,
+                    Player::P1 => Ordering::Greater,
+                },
             };
         }
 
         // Compare the number of nodes visited before most relevant vertex of the loop
-        match graph.relevance_of(self.0) % 2 {
-            0 => Ord::cmp(&self.2, &other.2).reverse(),
-            _ => Ord::cmp(&self.2, &other.2),
+        match graph.relevance_of(self.0).player() {
+            // If P0 is winning a shorter path is better (order is reversed, less is greater).
+            Player::P0 => Ord::cmp(&self.2, &other.2).reverse(),
+            // If P0 is losing a longer path is better (order is normal).
+            Player::P1 => Ord::cmp(&self.2, &other.2),
         }
     }
 }
@@ -173,10 +209,9 @@ fn subevaluation(
             break;
         }
 
-        if graph.relevance_of(u) % 2 == 0 {
-            prevent_paths(&mut graph, w, u, k_nodes, profiles);
-        } else {
-            force_paths(&mut graph, w, u, k_nodes, profiles)
+        match graph.relevance_of(u).player() {
+            Player::P0 => prevent_paths(&mut graph, w, u, k_nodes, profiles),
+            Player::P1 => force_paths(&mut graph, w, u, k_nodes, profiles),
         }
     }
 
@@ -188,10 +223,9 @@ fn subevaluation(
             .sort_by_key(|&n| Reverse(graph.relevance_of(n)));
     }
 
-    if graph.relevance_of(w) % 2 == 0 {
-        // TODO: maximal_distances
-    } else {
-        // TODO: minimal_distances
+    match graph.relevance_of(w).player() {
+        Player::P0 => {} // TODO: maximal_distances
+        Player::P1 => {} // TODO: minimal_distances
     }
 }
 
