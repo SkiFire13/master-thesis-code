@@ -14,6 +14,7 @@ pub fn expand(game: &mut Game) {
 
         for v in a.drain(..) {
             e2(game, v, |n| {
+                // Make new_a unique
                 if seen.insert(n) {
                     new_a.push(n);
                 }
@@ -31,12 +32,14 @@ fn e1(game: &mut Game) -> Vec<NodeData> {
     match game.relevance_of(relevant_node).player() {
         Player::P0 => {
             // TODO: Find unexplored node from p1 and expand it
-            // (Bonus: reachable from current strategy)
+            // (Bonus: reachable from current strategy?)
             todo!();
         }
         Player::P1 => {
             // TODO: Find unexplored node from p0 and expand it
-            // (Bonus: reachable from current strategy)
+            // (Bonus: reachable from current strategy?)
+
+            // TODO: also permanently apply decisions
             todo!();
         }
     }
@@ -50,6 +53,7 @@ fn e2(game: &mut Game, w: NodeData, mut add: impl FnMut(NodeData)) {
         NodeData::W1 => add(NodeData::L0),
         NodeData::L1 => add(NodeData::W0),
         NodeData::P0(n) => {
+            // TODO: apply decisions and stuff
             todo!();
         }
         NodeData::P1(n) => {
