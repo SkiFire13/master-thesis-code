@@ -1,19 +1,21 @@
 use std::cmp::{Ordering, Reverse};
+use std::collections::VecDeque;
 
 // TODO: Use node/vertex consistently
 
 // Bitset or something similar?
 pub type Set<T> = std::collections::BTreeSet<T>;
+pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 
 pub struct Graph {}
 
 impl Graph {
-    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
+    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         todo!();
         [].into_iter()
     }
 
-    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
+    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         todo!();
         [].into_iter()
     }
@@ -26,9 +28,13 @@ impl Graph {
         todo!()
     }
 
-    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> {
+    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
         todo!();
         [].into_iter()
+    }
+
+    fn successors_count_of(&self, n: NodeId) -> usize {
+        todo!()
     }
 }
 
@@ -87,9 +93,6 @@ impl PlayProfile {
             return Ord::cmp(&this_rew, &that_rew);
         }
 
-        // TODO: compare the two lists
-        //  - if they have two elements where they differ, compare their reward;
-        //  - if one has strictly more elements than the other, look at the winning player in that element.
         let mut this_iter = self.1.iter();
         let mut that_iter = other.1.iter();
         loop {
@@ -135,6 +138,7 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
             continue;
         }
 
+        // Consider only predecessors that weren't "removed".
         let predecessors_of = |n| graph.predecessors_of(n).filter(|v| !evaluated.contains(v));
 
         // Find all nodes v <= w that can reach w
@@ -144,17 +148,18 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
             predecessors_of(u).filter(|&v| graph.relevance_of(v) <= w_relevance)
         });
 
-        // If w cannot reach itself it cannot create a loop, ignore it.
+        // If w cannot reach itself without going through nodes with higher priority
+        // it cannot be the most relevant node of a loop.
         if !reach_set.contains(&w) {
             continue;
         }
 
         // Find all nodes that can reach w.
-        let (mut k_nodes, _) = reach(w, predecessors_of);
+        let (mut k_nodes, k_set) = reach(w, predecessors_of);
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
-        subevaluation(graph, w, &mut k_nodes, &mut profiles, &evaluated);
+        subevaluation(graph, w, &mut k_nodes, &k_set, &mut profiles, &evaluated);
 
         // Equivalent to removing edges from K to V \ K,
         // as it will make sure they will never get explored again.
@@ -170,16 +175,41 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
 struct RestrictedGraph<'a> {
     /// The base graph
     base: &'a Graph,
-    /// Already evaluated nodes, thus excluded from the graph
-    evaluated: &'a Set<NodeId>,
+    /// List of nodes that are in the restricted graph (for fast iteration)
+    k_nodes: &'a [NodeId],
+    /// Set of nodes that are in the restricted graph (for filtering/checking)
+    k_set: &'a Set<NodeId>,
     /// Edges removed from the graph
     removed_edges: Set<(NodeId, NodeId)>,
+    /// Number of outgoing edges removed from each node
+    removed_successors_count: NodeMap<usize>,
 }
 
-impl<'a> std::ops::Deref for RestrictedGraph<'a> {
-    type Target = &'a Graph;
-    fn deref(&self) -> &Self::Target {
-        &self.base
+impl<'a> RestrictedGraph<'a> {
+    fn predecessors_of(&self, v: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.base
+            .predecessors_of(v)
+            .filter(|&u| self.k_set.contains(&u))
+            .filter(move |&u| !self.removed_edges.contains(&(u, v)))
+    }
+
+    fn successors_count_of(&self, v: NodeId) -> usize {
+        // TODO: this need to account for edges that go outside K
+        self.base.successors_count_of(v) - self.removed_successors_count.get(&v).unwrap_or(&0)
+    }
+
+    fn all_successors_of(&self, v: NodeId) -> impl Iterator<Item = NodeId> + 'a {
+        self.base.successors_of(v)
+    }
+
+    fn remove_edge(&mut self, v: NodeId, u: NodeId) {
+        if self.removed_edges.insert((v, u)) {
+            *self.removed_successors_count.entry(v).or_insert(0) += 1;
+        }
+    }
+
+    fn relevance_of(&self, v: NodeId) -> Relevance {
+        self.base.relevance_of(v)
     }
 }
 
@@ -187,106 +217,89 @@ fn subevaluation(
     graph: &Graph,
     w: NodeId,
     k_nodes: &mut [NodeId],
+    k_set: &Set<NodeId>,
     profiles: &mut [PlayProfile],
     evaluated: &Set<NodeId>,
 ) {
-    let mut graph = RestrictedGraph { base: graph, evaluated, removed_edges: Set::new() };
+    // Sort K by relevance, for the loop later on.
+    k_nodes.sort_by_key(|&v| graph.relevance_of(v));
+
+    let mut graph = RestrictedGraph {
+        base: graph,
+        k_nodes,
+        k_set,
+        removed_edges: Set::new(),
+        removed_successors_count: NodeMap::new(),
+    };
 
     let w_relevance = graph.relevance_of(w);
 
-    // Sort K by relevance
-    k_nodes.sort_by_key(|&v| graph.relevance_of(v));
-
     // All these nodes will be part of cycles that contain w as most relevant node.
-    for &v in &*k_nodes {
+    for &v in &*graph.k_nodes {
         profiles[v.0].0 = w;
     }
 
     // Iterate over K with descending relevance order for those nodes that have
     // higher relevance than w
-    for &u in k_nodes.iter().rev() {
+    for &u in graph.k_nodes.iter().rev() {
         if graph.relevance_of(u) <= w_relevance {
             break;
         }
 
         match graph.relevance_of(u).player() {
-            Player::P0 => prevent_paths(&mut graph, w, u, k_nodes, profiles),
-            Player::P1 => force_paths(&mut graph, w, u, k_nodes, profiles),
+            Player::P0 => prevent_paths(&mut graph, w, u, profiles),
+            Player::P1 => force_paths(&mut graph, w, u, profiles),
         }
     }
 
     // Extra: sort the nodes in the profile by their relevance, as that will help
     // when comparing profiles.
-    for v in &*k_nodes {
+    for v in &*graph.k_nodes {
         profiles[v.0]
             .1
             .sort_by_key(|&n| Reverse(graph.relevance_of(n)));
     }
 
     match graph.relevance_of(w).player() {
-        Player::P0 => {} // TODO: maximal_distances
-        Player::P1 => {} // TODO: minimal_distances
+        Player::P0 => set_maximal_distances(&mut graph, w, profiles),
+        Player::P1 => set_minimal_distances(&mut graph, w, profiles),
     }
 }
 
 /// Prevent any path that can go through u from doing so.
-fn prevent_paths(
-    graph: &mut RestrictedGraph,
-    w: NodeId,
-    u: NodeId,
-    k_nodes: &[NodeId],
-    profiles: &mut [PlayProfile],
-) {
-    // Find nodes reachable from w in the graph excluding u.
-    let (u_nodes, u_set) = reach(w, |n| {
-        let removed_edges = &graph.removed_edges;
-        graph
-            .predecessors_of(n)
-            .filter(|&v| !graph.evaluated.contains(&v))
-            .filter(move |&v| !removed_edges.contains(&(v, n)))
-            .filter(|&v| v != u)
-    });
+fn prevent_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &mut [PlayProfile]) {
+    // Find nodes that can reach w without going through u.
+    let (u_nodes, u_set) = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
 
-    // Update profiles of those path that must go through u
-    for &v in k_nodes.iter().filter(|v| !u_set.contains(v)) {
+    // Update profiles of nodes whose path must go through u.
+    for &v in graph.k_nodes.iter().filter(|v| !u_set.contains(v)) {
         profiles[v.0].1.push(u);
     }
 
-    // Remove edges from u_nodes U {u} to V \ U_nodes
+    // Remove edges that would make paths go through u when it's possible
+    // to avoid it, that is edges from u_nodes U {u} to V \ U_nodes.
     for &v in u_nodes.iter().chain([&u]) {
-        for next in graph.successors_of(v).filter(|next| !u_set.contains(next)) {
-            graph.removed_edges.insert((v, next));
+        for next in graph.all_successors_of(v).filter(|n| !u_set.contains(n)) {
+            graph.remove_edge(v, next);
         }
     }
 }
 
 /// Make any path that can go through u do so.
-fn force_paths(
-    graph: &mut RestrictedGraph,
-    w: NodeId,
-    u: NodeId,
-    k_nodes: &[NodeId],
-    profiles: &mut [PlayProfile],
-) {
-    // Find nodes reachable from w in the graph excluding u.
-    let (u_nodes, u_set) = reach(u, |n| {
-        let removed_edges = &graph.removed_edges;
-        graph
-            .predecessors_of(n)
-            .filter(|&v| !graph.evaluated.contains(&v))
-            .filter(move |&v| !removed_edges.contains(&(v, n)))
-            .filter(|&v| v != w)
-    });
+fn force_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &mut [PlayProfile]) {
+    // Find nodes that can reach u without going through w.
+    let (u_nodes, u_set) = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
 
-    // Update profiles of those path that can go through u
-    for &v in k_nodes.iter().filter(|v| u_set.contains(v)) {
+    // Update profiles of nodes whose path can go through u.
+    for &v in graph.k_nodes.iter().filter(|v| u_set.contains(v)) {
         profiles[v.0].1.push(u);
     }
 
-    // Remove edges from u_nodes \ {u} to V \ u_nodes
+    // Remove edges that would make paths not go through u when it's possible
+    // to do so, that is edges from u_nodes \ {u} to V \ u_nodes
     for &v in u_nodes.iter().filter(|&&v| v != u) {
-        for next in graph.successors_of(v).filter(|next| !u_set.contains(next)) {
-            graph.removed_edges.insert((v, next));
+        for next in graph.all_successors_of(v).filter(|n| !u_set.contains(n)) {
+            graph.remove_edge(v, next);
         }
     }
 }
@@ -299,6 +312,7 @@ where
     let mut stack = Vec::from_iter(explore(start));
     let (mut nodes, mut set) = (Vec::new(), Set::new());
 
+    // BFS according to explore
     while let Some(node) = stack.pop() {
         if set.insert(node) {
             nodes.push(node);
@@ -307,4 +321,42 @@ where
     }
 
     (nodes, set)
+}
+
+fn set_maximal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut [PlayProfile]) {
+    let mut remaining_successors = graph
+        .k_nodes
+        .iter()
+        .map(|&v| (v, graph.successors_count_of(v)))
+        .collect::<NodeMap<_>>();
+    let mut queue = VecDeque::from([(w, 0)]);
+
+    remaining_successors.remove(&w);
+
+    while let Some((v, d)) = queue.pop_front() {
+        profiles[v.0].2 = d;
+        for u in graph.predecessors_of(v).filter(|&u| u != w) {
+            // Decrease number of remaining successors to visit
+            let remaining = remaining_successors.get_mut(&u).unwrap();
+            *remaining -= 1;
+
+            // If last was visited then add node to the queue with one more edge.
+            if *remaining == 0 {
+                queue.push_back((u, d + 1));
+            }
+        }
+    }
+}
+
+fn set_minimal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut [PlayProfile]) {
+    let mut seen = Set::new();
+    let mut queue = VecDeque::from([(w, 0)]);
+
+    // Backward BFS
+    while let Some((v, d)) = queue.pop_front() {
+        if seen.insert(v) {
+            profiles[v.0].2 = d;
+            queue.extend(graph.predecessors_of(v).map(|u| (u, d + 1)))
+        }
+    }
 }
