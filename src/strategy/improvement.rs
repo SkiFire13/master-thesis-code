@@ -1,95 +1,77 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::VecDeque;
 
+use super::game::{Game, NodeId, Player, Relevance};
+
 // TODO: Use node/vertex consistently
+// TODO: Reduced graph on P0 strategy
 
 // Bitset or something similar?
 pub type Set<T> = std::collections::BTreeSet<T>;
 pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 
-pub struct Graph {}
+struct Graph<'a> {
+    game: &'a Game,
+    strategy: &'a [NodeId],
+}
 
-impl Graph {
-    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        todo!();
-        [].into_iter()
+impl<'a> Graph<'a> {
+    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
+        _ = (self.game, self.strategy);
+        _ = n;
+        if false {
+            return [].into_iter();
+        }
+        todo!()
     }
 
-    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        todo!();
-        [].into_iter()
+    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
+        _ = n;
+        if false {
+            return [].into_iter();
+        }
+        todo!()
     }
 
     fn node_count(&self) -> usize {
-        todo!()
+        self.game.nodes.len()
     }
 
     fn relevance_of(&self, n: NodeId) -> Relevance {
-        todo!()
+        self.game.relevance_of(n)
     }
 
-    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
-        todo!();
-        [].into_iter()
+    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + 'a {
+        if false {
+            return [].into_iter();
+        }
+        todo!()
     }
 
     fn successors_count_of(&self, n: NodeId) -> usize {
+        _ = n;
         todo!()
     }
 }
 
-pub enum Player {
-    P0,
-    P1,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Relevance(usize, NodeId);
-
-impl Relevance {
-    pub fn player(self) -> Player {
-        match self.0 % 2 {
-            0 => Player::P0,
-            _ => Player::P1,
-        }
-    }
-
-    pub fn reward(self) -> Reward {
-        match self.player() {
-            Player::P0 => Reward::P0(self),
-            Player::P1 => Reward::P1(Reverse(self)),
-        }
-    }
-}
-
-// Note: order is important here. Reward in favour of P1 are considered less
-// than rewards in favour of P0. Also, relevance for P1 rewards are considered
-// reversed (bigger relevance is worse for P0, and thus less).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Reward {
-    P1(Reverse<Relevance>),
-    P0(Relevance),
-}
-
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NodeId(usize);
-
+// TODO: Give names
 #[derive(Clone, Default)]
 pub struct PlayProfile(
     /// Most relevant node of the cycle.
-    NodeId,
+    pub NodeId,
     /// Nodes more relevant visited before the cycle, sorted by most relevant first.
-    Vec<NodeId>,
+    pub Vec<NodeId>,
     /// Number of nodes visited before the most relevant of the cycle.
-    usize,
+    pub usize,
 );
 
 impl PlayProfile {
-    pub fn cmp(&self, other: &PlayProfile, graph: &Graph) -> Ordering {
+    // TODO: Use Game or make Graph public
+    pub fn cmp(&self, other: &PlayProfile, game: &Game) -> Ordering {
         // Compare the most relevant vertex of the cycle
         if self.0 != other.0 {
-            let this_rew = graph.relevance_of(self.0).reward();
-            let that_rew = graph.relevance_of(other.0).reward();
+            let this_rew = game.relevance_of(self.0).reward();
+            let that_rew = game.relevance_of(other.0).reward();
             return Ord::cmp(&this_rew, &that_rew);
         }
 
@@ -100,14 +82,14 @@ impl PlayProfile {
                 (None, None) => break,
                 (Some(&u), Some(&v)) if u == v => continue,
                 (Some(&u), Some(&v)) => Ord::cmp(
-                    &graph.relevance_of(u).reward(),
-                    &graph.relevance_of(v).reward(),
+                    &game.relevance_of(u).reward(),
+                    &game.relevance_of(v).reward(),
                 ),
-                (Some(&u), None) => match graph.relevance_of(u).player() {
+                (Some(&u), None) => match game.relevance_of(u).player() {
                     Player::P0 => Ordering::Greater,
                     Player::P1 => Ordering::Less,
                 },
-                (None, Some(&u)) => match graph.relevance_of(u).player() {
+                (None, Some(&u)) => match game.relevance_of(u).player() {
                     Player::P0 => Ordering::Less,
                     Player::P1 => Ordering::Greater,
                 },
@@ -115,7 +97,7 @@ impl PlayProfile {
         }
 
         // Compare the number of nodes visited before most relevant vertex of the loop
-        match graph.relevance_of(self.0).player() {
+        match game.relevance_of(self.0).player() {
             // If P0 is winning a shorter path is better (order is reversed, less is greater).
             Player::P0 => Ord::cmp(&self.2, &other.2).reverse(),
             // If P0 is losing a longer path is better (order is normal).
@@ -124,9 +106,12 @@ impl PlayProfile {
     }
 }
 
-pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
+// TODO: Graph here should be restricted to player 1 moves
+pub fn valuation(game: &Game, strategy: &[NodeId]) -> Vec<PlayProfile> {
+    let graph = &Graph { game, strategy };
+
     // TODO: Bitset or something similar?
-    let mut evaluated: Set<NodeId> = Set::new();
+    let mut evaluated = Set::new();
     let mut profiles = vec![PlayProfile::default(); graph.node_count()];
 
     // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
@@ -159,13 +144,11 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
-        subevaluation(graph, w, &mut k_nodes, &k_set, &mut profiles, &evaluated);
+        subevaluation(graph, w, &mut k_nodes, &k_set, &mut profiles);
 
         // Equivalent to removing edges from K to V \ K,
         // as it will make sure they will never get explored again.
-        for &v in &k_nodes {
-            evaluated.insert(v);
-        }
+        evaluated.extend(k_nodes);
     }
 
     profiles
@@ -174,7 +157,7 @@ pub fn valuation(graph: &Graph) -> Vec<PlayProfile> {
 /// A restricted graph without some nodes or edges.
 struct RestrictedGraph<'a> {
     /// The base graph
-    base: &'a Graph,
+    base: &'a Graph<'a>,
     /// List of nodes that are in the restricted graph (for fast iteration)
     k_nodes: &'a [NodeId],
     /// Set of nodes that are in the restricted graph (for filtering/checking)
@@ -219,7 +202,6 @@ fn subevaluation(
     k_nodes: &mut [NodeId],
     k_set: &Set<NodeId>,
     profiles: &mut [PlayProfile],
-    evaluated: &Set<NodeId>,
 ) {
     // Sort K by relevance, for the loop later on.
     k_nodes.sort_by_key(|&v| graph.relevance_of(v));
@@ -360,3 +342,5 @@ fn set_minimal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut 
         }
     }
 }
+
+// TODO: improve function

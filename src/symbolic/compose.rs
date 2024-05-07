@@ -1,4 +1,4 @@
-use super::eq::{Expr, FixEq, FunId, VarId};
+use super::eq::{Expr, FixEq, FixType, FunId, VarId};
 use super::formula::{simplify_and, simplify_or, BasisId, Formula};
 
 pub struct FunsFormulas {
@@ -13,13 +13,15 @@ impl FunsFormulas {
 
 pub struct EqsFormulas {
     /// 2D array with BasisId indexing columns and VarId indexing rows.
-    moves: Vec<Formula>,
+    pub moves: Vec<Formula>,
     /// Number of columns / length of a row.
     basis_count: usize,
+    /// Type of fixpoint for each equation.
+    pub eq_fix_types: Vec<FixType>,
 }
 
 impl EqsFormulas {
-    pub fn compose(eqs: &[FixEq], raw_moves: &FunsFormulas, basis_count: usize) -> Self {
+    pub fn new(eqs: &[FixEq], raw_moves: &FunsFormulas, basis_count: usize) -> Self {
         let mut moves = Vec::with_capacity(eqs.len() * raw_moves.formulas.len());
         for eq in eqs {
             for b in (0..basis_count).map(BasisId) {
@@ -27,11 +29,21 @@ impl EqsFormulas {
             }
         }
 
-        Self { moves, basis_count }
+        let eq_fix_types = eqs.iter().map(|e| e.fix_type).collect();
+
+        Self { moves, basis_count, eq_fix_types }
     }
 
     pub fn get(&self, b: BasisId, i: VarId) -> &Formula {
         &self.moves[i.0 * self.basis_count + b.0]
+    }
+
+    pub fn basis_count(&self) -> usize {
+        self.basis_count
+    }
+
+    pub fn var_count(&self) -> usize {
+        self.moves.len() / self.basis_count
     }
 }
 
