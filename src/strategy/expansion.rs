@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 
+use crate::index::IndexVec;
 use crate::strategy::game::{NodeId, NodeP0Id, Player};
 
 use super::game::{Game, NodeData};
+use super::improvement::PlayProfile;
 
-pub fn expand(game: &mut Game) {
-    let mut a = e1(game);
+pub fn expand(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) {
+    let mut a = e1(game, profiles);
     let mut new_a = Vec::new();
     let mut seen = HashSet::new();
 
@@ -25,9 +27,10 @@ pub fn expand(game: &mut Game) {
     }
 }
 
-fn e1(game: &mut Game) -> Vec<NodeData> {
+fn e1(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) -> Vec<NodeData> {
+    // TODO: Is this correct?
     let init_node = NodeId::INIT;
-    let relevant_node = game.profiles[init_node].most_relevant;
+    let relevant_node = profiles[init_node].most_relevant;
 
     match game.relevance_of(relevant_node).player() {
         Player::P0 => {

@@ -5,8 +5,6 @@ use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::{BasisId, Formula};
 
-use super::improvement::PlayProfile;
-
 new_index!(pub index NodeId);
 
 impl NodeId {
@@ -50,9 +48,6 @@ pub struct Game {
     // Successors of each node type
     pub p0_succs: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
     pub p1_succs: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
-
-    // Play profiles of the last iteration
-    pub profiles: IndexVec<NodeId, PlayProfile>,
 }
 
 impl Game {
@@ -78,8 +73,6 @@ impl Game {
             w1_preds: Vec::new(),
             p0_succs: IndexVec::new(),
             p1_succs: IndexVec::new(),
-
-            profiles: IndexVec::new(),
         }
     }
 

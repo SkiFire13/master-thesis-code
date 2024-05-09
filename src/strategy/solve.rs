@@ -1,6 +1,7 @@
 use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
 use crate::strategy::game::{Game, NodeP0Id, NodeP1Id};
+use crate::strategy::improvement::PlayProfile;
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisId;
@@ -13,7 +14,8 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
 
     let mut game = Game::new(b, i, moves);
 
-    expand(&mut game);
+    // TODO: This play profile vec is wrong.
+    expand(&mut game, &IndexVec::from(vec![PlayProfile::default()]));
     // TODO: init/update W0/W1
 
     let mut strategy = IndexVec::from(vec![NodeP1Id(0); game.p0_set.len()]);
