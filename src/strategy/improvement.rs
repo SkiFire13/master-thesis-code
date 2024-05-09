@@ -162,7 +162,7 @@ pub fn valuation(
 
         // Find all nodes v <= w that can reach w
         let w_relevance = graph.relevance_of(w);
-        let (_, reach_set) = reach(w, |u| {
+        let reach_set = reach(w, |u| {
             predecessors_of(u).filter(|&v| graph.relevance_of(v) <= w_relevance)
         });
         // If w cannot reach itself without going through nodes with higher priority
@@ -172,15 +172,15 @@ pub fn valuation(
         }
 
         // Find all nodes that can reach w.
-        let (mut k_nodes, k_set) = reach(w, predecessors_of);
+        let k_set = reach(w, predecessors_of);
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
-        subevaluation(graph, w, &mut k_nodes, &k_set, &mut profiles);
+        subevaluation(graph, w, &k_set, &mut profiles);
 
         // Equivalent to removing edges from K to V \ K,
         // as it will make sure they will never get explored again.
-        evaluated.extend(k_nodes);
+        evaluated.extend(k_set);
     }
 
     profiles
@@ -236,16 +236,17 @@ impl<'a> RestrictedGraph<'a> {
 fn subevaluation(
     graph: &Graph,
     w: NodeId,
-    k_nodes: &mut [NodeId],
     k_set: &Set<NodeId>,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
+    let mut k_nodes = k_set.iter().copied().collect::<Vec<_>>();
+
     // Sort K by relevance, for the loop later on.
     k_nodes.sort_by_key(|&v| graph.relevance_of(v));
 
     let mut graph = RestrictedGraph {
         base: graph,
-        k_nodes,
+        k_nodes: &k_nodes,
         k_set,
         removed_edges: Set::new(),
         removed_successors_count: NodeMap::new(),
@@ -294,7 +295,7 @@ fn prevent_paths(
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
     // Find nodes that can reach w without going through u.
-    let (u_nodes, u_set) = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
+    let u_set = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
 
     // Update profiles of nodes whose path must go through u.
     for &v in graph.k_nodes.iter().filter(|v| !u_set.contains(v)) {
@@ -303,7 +304,7 @@ fn prevent_paths(
 
     // Remove edges that would make paths go through u when it's possible
     // to avoid it, that is edges from u_nodes U {u} to V \ U_nodes.
-    for &v in u_nodes.iter().chain([&u]) {
+    for &v in u_set.iter().chain([&u]) {
         for next in graph.all_successors_of(v).filter(|n| !u_set.contains(n)) {
             graph.remove_edge(v, next);
         }
@@ -318,7 +319,7 @@ fn force_paths(
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
     // Find nodes that can reach u without going through w.
-    let (u_nodes, u_set) = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
+    let u_set = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
 
     // Update profiles of nodes whose path can go through u.
     for &v in graph.k_nodes.iter().filter(|v| u_set.contains(v)) {
@@ -327,30 +328,29 @@ fn force_paths(
 
     // Remove edges that would make paths not go through u when it's possible
     // to do so, that is edges from u_nodes \ {u} to V \ u_nodes
-    for &v in u_nodes.iter().filter(|&&v| v != u) {
+    for &v in u_set.iter().filter(|&&v| v != u) {
         for next in graph.all_successors_of(v).filter(|n| !u_set.contains(n)) {
             graph.remove_edge(v, next);
         }
     }
 }
 
-fn reach<F, I>(start: NodeId, mut explore: F) -> (Vec<NodeId>, Set<NodeId>)
+fn reach<F, I>(start: NodeId, mut explore: F) -> Set<NodeId>
 where
     F: FnMut(NodeId) -> I,
     I: IntoIterator<Item = NodeId>,
 {
     let mut stack = Vec::from_iter(explore(start));
-    let (mut nodes, mut set) = (Vec::new(), Set::new());
+    let mut set = Set::new();
 
     // BFS according to explore
     while let Some(node) = stack.pop() {
         if set.insert(node) {
-            nodes.push(node);
             stack.extend(explore(node));
         }
     }
 
-    (nodes, set)
+    set
 }
 
 fn set_maximal_distances(
