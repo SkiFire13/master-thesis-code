@@ -1,7 +1,9 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::VecDeque;
+use std::slice;
 
 use crate::index::IndexVec;
+use crate::strategy::game::NodeData;
 
 use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 
@@ -15,16 +17,21 @@ pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 struct Graph<'a> {
     game: &'a Game,
     strategy: &'a IndexVec<NodeP0Id, NodeP1Id>,
+    // TODO: inverse_strategy
 }
 
 impl<'a> Graph<'a> {
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
-        _ = (self.game, self.strategy);
-        _ = n;
-        if false {
-            return [].into_iter();
+        match self.game.resolve(n) {
+            NodeData::L0 => &[NodeId::W1],
+            NodeData::W1 => &[NodeId::L0],
+            NodeData::W0 => &[NodeId::L1],
+            NodeData::L1 => &[NodeId::W0],
+            NodeData::P0(n) => slice::from_ref(&self.game.p1_node_ids[self.strategy[n]]),
+            NodeData::P1(n) => todo!("Get P1 successors"),
         }
-        todo!()
+        .iter()
+        .copied()
     }
 
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {

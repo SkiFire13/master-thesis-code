@@ -34,11 +34,14 @@ new_index!(pub index NodeP1Id);
 pub struct Game {
     pub formulas: EqsFormulas,
 
-    pub nodes: Vec<NodeData>,
+    pub nodes: IndexVec<NodeId, NodeData>,
     // TODO: informations about the node and in/out edges
     pub nodes_p0: IndexSet<NodeP0Id, (BasisId, VarId)>,
     // TODO: informations about the node and in/out edges
     pub nodes_p1: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
+
+    pub p0_node_ids: IndexVec<NodeP0Id, NodeId>,
+    pub p1_node_ids: IndexVec<NodeP1Id, NodeId>,
 
     // pub successors_p0: Vec<Vec<NodeP1Id>>,
     // pub successors_p1: Vec<Vec<NodeP0Id>>,
@@ -52,15 +55,17 @@ impl Game {
     pub fn new(b: BasisId, i: VarId, formulas: EqsFormulas) -> Self {
         Self {
             formulas,
-            nodes: vec![
+            nodes: IndexVec::from(vec![
                 NodeData::W0,
                 NodeData::L0,
                 NodeData::W1,
                 NodeData::L1,
                 NodeData::P0(NodeP0Id(0)),
-            ],
+            ]),
             nodes_p0: IndexSet::from([(b, i)]),
             nodes_p1: IndexSet::new(),
+            p0_node_ids: IndexVec::from(vec![NodeId::INIT]),
+            p1_node_ids: IndexVec::new(),
             // successors_p0: Vec::new(),
             // successors_p1: Vec::new(),
             // predecessors_p0: Vec::new(),
@@ -70,7 +75,7 @@ impl Game {
     }
 
     pub fn resolve(&self, n: NodeId) -> NodeData {
-        self.nodes[n.0]
+        self.nodes[n]
     }
 
     pub fn relevance_of(&self, n: NodeId) -> Relevance {
