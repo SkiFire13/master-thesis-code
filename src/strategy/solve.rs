@@ -1,7 +1,7 @@
 use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
 use crate::strategy::game::{Game, NodeP0Id, NodeP1Id};
-use crate::strategy::improvement::PlayProfile;
+use crate::strategy::improvement::{improve, valuation, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisId;
@@ -25,13 +25,14 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
     let _: IndexVec<NodeP0Id, NodeP1Id> = strategy;
 
     while todo!("(b, i) not in W0 or W1") {
-        // TODO: valuation
+        let profiles = valuation(&game, &strategy);
 
-        // TODO: try to improve valuation
-
-        // TODO: update W0/W1 (when?)
-
-        // TODO: expand if improved enough + expand strategy
+        if improve(&game, &mut strategy, &profiles) {
+            // TODO: update W0/W1 (is it possible?)
+        } else {
+            // expand graph
+            // expand strategy
+        }
     }
 
     todo!("is (b, i) in W0?")
