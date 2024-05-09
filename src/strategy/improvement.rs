@@ -50,17 +50,14 @@ impl<'a> Graph<'a> {
             ),
             // The predecessor of the W1 node are all those P0 nodes with a false formula.
             NodeData::W1 => Right(Right(self.game.w1_preds.iter())),
-            // TODO
+            // The predecessors of a p0 node are all those recorded in the game.
             NodeData::P0(n) => Right(Left(self.game.p0_preds[n].iter())),
-            // TODO
+            // The predecessors of a p1 node are those given by the strategy.
             NodeData::P1(n) => Right(Right(self.inverse_strategy[n].iter())),
         }
         .map_left(|slice| slice.iter().copied())
-        .map_right(|inner| {
-            inner
-                .map_left(|iter| iter.map(|&n| self.game.p1_ids[n]))
-                .map_right(|iter| iter.map(|&n| self.game.p0_ids[n]))
-        })
+        .map_right(|inner| inner.map_left(|iter| iter.map(|&n| self.game.p1_ids[n])))
+        .map_right(|inner| inner.map_right(|iter| iter.map(|&n| self.game.p0_ids[n])))
     }
 
     fn node_count(&self) -> usize {
@@ -90,18 +87,17 @@ pub struct PlayProfile {
 }
 
 impl PlayProfile {
-    // TODO: Use Game or make Graph public
-    pub fn cmp(&self, other: &PlayProfile, game: &Game) -> Ordering {
+    pub fn cmp(&self, that: &PlayProfile, game: &Game) -> Ordering {
         // Compare the most relevant vertex of the cycle
-        if self.most_relevant != other.most_relevant {
+        if self.most_relevant != that.most_relevant {
             let this_rew = game.relevance_of(self.most_relevant).reward();
-            let that_rew = game.relevance_of(other.most_relevant).reward();
+            let that_rew = game.relevance_of(that.most_relevant).reward();
             return Ord::cmp(&this_rew, &that_rew);
         }
 
         // Compare the set of more relevant nodes visited before the cycle
         let mut this_iter = self.relevant_before.iter();
-        let mut that_iter = other.relevant_before.iter();
+        let mut that_iter = that.relevant_before.iter();
         loop {
             // The vecs are sorted by most relevant first so this will compare the
             // most relevant of each set until one has a more relevant one or runs out of nodes.
@@ -131,9 +127,9 @@ impl PlayProfile {
         // Compare the number of nodes visited before most relevant vertex of the loop
         match game.relevance_of(self.most_relevant).player() {
             // If P0 is winning a shorter path is better (order is reversed, less is greater).
-            Player::P0 => Ord::cmp(&self.count_before, &other.count_before).reverse(),
+            Player::P0 => Ord::cmp(&self.count_before, &that.count_before).reverse(),
             // If P0 is losing a longer path is better (order is normal).
-            Player::P1 => Ord::cmp(&self.count_before, &other.count_before),
+            Player::P1 => Ord::cmp(&self.count_before, &that.count_before),
         }
     }
 }
@@ -149,7 +145,6 @@ pub fn valuation(
     }
     let graph = &Graph { game, strategy, inverse_strategy };
 
-    // TODO: Bitset or something similar?
     let mut evaluated = Set::new();
     let mut profiles = IndexVec::from(vec![PlayProfile::default(); graph.node_count()]);
 
@@ -168,10 +163,8 @@ pub fn valuation(
         // Find all nodes v <= w that can reach w
         let w_relevance = graph.relevance_of(w);
         let (_, reach_set) = reach(w, |u| {
-            // TODO: is this really necessary?
             predecessors_of(u).filter(|&v| graph.relevance_of(v) <= w_relevance)
         });
-
         // If w cannot reach itself without going through nodes with higher priority
         // it cannot be the most relevant node of a loop.
         if !reach_set.contains(&w) {
@@ -265,8 +258,8 @@ fn subevaluation(
         profiles[v].most_relevant = w;
     }
 
-    // Iterate over K with descending relevance order for those nodes that have
-    // higher relevance than w
+    // Iterate over K with descending relevance order, considering only those
+    // nodes that have higher relevance than w.
     for &u in graph.k_nodes.iter().rev() {
         if graph.relevance_of(u) <= w_relevance {
             break;
@@ -286,6 +279,7 @@ fn subevaluation(
             .sort_by_key(|&n| Reverse(graph.relevance_of(n)));
     }
 
+    // Depending on the player favoured by w maximize or minimize the distances.
     match graph.relevance_of(w).player() {
         Player::P0 => set_maximal_distances(&mut graph, w, profiles),
         Player::P1 => set_minimal_distances(&mut graph, w, profiles),
