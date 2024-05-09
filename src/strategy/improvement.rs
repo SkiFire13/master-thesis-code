@@ -15,6 +15,88 @@ use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 pub type Set<T> = std::collections::BTreeSet<T>;
 pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 
+#[derive(Clone, Default)]
+pub struct PlayProfile {
+    /// Most relevant node of the cycle.
+    pub most_relevant: NodeId,
+    /// Nodes more relevant visited before the cycle, sorted by most relevant first.
+    pub relevant_before: Vec<NodeId>,
+    /// Number of nodes visited before the most relevant of the cycle.
+    pub count_before: usize,
+}
+
+impl PlayProfile {
+    pub fn cmp(&self, that: &PlayProfile, game: &Game) -> Ordering {
+        // Compare the most relevant vertex of the cycle
+        if self.most_relevant != that.most_relevant {
+            let this_rew = game.relevance_of(self.most_relevant).reward();
+            let that_rew = game.relevance_of(that.most_relevant).reward();
+            return Ord::cmp(&this_rew, &that_rew);
+        }
+
+        // Compare the set of more relevant nodes visited before the cycle
+        let mut this_iter = self.relevant_before.iter();
+        let mut that_iter = that.relevant_before.iter();
+        loop {
+            // The vecs are sorted by most relevant first so this will compare the
+            // most relevant of each set until one has a more relevant one or runs out of nodes.
+            return match (this_iter.next(), that_iter.next()) {
+                // If both ran out of nodes they are the same
+                (None, None) => break,
+                // Ignore when both have the same node.
+                (Some(&u), Some(&v)) if u == v => continue,
+                // If the nodes are different, compare their rewards
+                (Some(&u), Some(&v)) => Ord::cmp(
+                    &game.relevance_of(u).reward(),
+                    &game.relevance_of(v).reward(),
+                ),
+                // If the other profile ran out of nodes, this wins if the node benefits p0
+                (Some(&u), None) => match game.relevance_of(u).player() {
+                    Player::P0 => Ordering::Greater,
+                    Player::P1 => Ordering::Less,
+                },
+                // If the this profile ran out of nodes, this wins if the other node benefits p1
+                (None, Some(&u)) => match game.relevance_of(u).player() {
+                    Player::P0 => Ordering::Less,
+                    Player::P1 => Ordering::Greater,
+                },
+            };
+        }
+
+        // Compare the number of nodes visited before most relevant vertex of the loop
+        match game.relevance_of(self.most_relevant).player() {
+            // If P0 is winning a shorter path is better (order is reversed, less is greater).
+            Player::P0 => Ord::cmp(&self.count_before, &that.count_before).reverse(),
+            // If P0 is losing a longer path is better (order is normal).
+            Player::P1 => Ord::cmp(&self.count_before, &that.count_before),
+        }
+    }
+}
+
+pub fn improve(
+    game: &Game,
+    strategy: &mut IndexVec<NodeP0Id, NodeP1Id>,
+    profiles: &IndexVec<NodeId, PlayProfile>,
+) -> bool {
+    let mut improved = false;
+
+    // For each p0 node try improving it
+    for (n0, n1) in strategy.iter_mut().enumerate() {
+        // For each successor check if its play profile is better
+        for m1 in &game.p0_succs[NodeP0Id(n0)] {
+            let n1id = game.p1_ids[*n1];
+            let m1id = game.p1_ids[*m1];
+            if profiles[n1id].cmp(&profiles[m1id], game).is_lt() {
+                // If it's better update the strategy
+                *n1 = *m1;
+                improved = true;
+            }
+        }
+    }
+
+    improved
+}
+
 struct Graph<'a> {
     game: &'a Game,
     strategy: &'a IndexVec<NodeP0Id, NodeP1Id>,
@@ -73,64 +155,6 @@ impl<'a> Graph<'a> {
             return [].into_iter();
         }
         todo!()
-    }
-}
-
-#[derive(Clone, Default)]
-pub struct PlayProfile {
-    /// Most relevant node of the cycle.
-    pub most_relevant: NodeId,
-    /// Nodes more relevant visited before the cycle, sorted by most relevant first.
-    pub relevant_before: Vec<NodeId>,
-    /// Number of nodes visited before the most relevant of the cycle.
-    pub count_before: usize,
-}
-
-impl PlayProfile {
-    pub fn cmp(&self, that: &PlayProfile, game: &Game) -> Ordering {
-        // Compare the most relevant vertex of the cycle
-        if self.most_relevant != that.most_relevant {
-            let this_rew = game.relevance_of(self.most_relevant).reward();
-            let that_rew = game.relevance_of(that.most_relevant).reward();
-            return Ord::cmp(&this_rew, &that_rew);
-        }
-
-        // Compare the set of more relevant nodes visited before the cycle
-        let mut this_iter = self.relevant_before.iter();
-        let mut that_iter = that.relevant_before.iter();
-        loop {
-            // The vecs are sorted by most relevant first so this will compare the
-            // most relevant of each set until one has a more relevant one or runs out of nodes.
-            return match (this_iter.next(), that_iter.next()) {
-                // If both ran out of nodes they are the same
-                (None, None) => break,
-                // Ignore when both have the same node.
-                (Some(&u), Some(&v)) if u == v => continue,
-                // If the nodes are different, compare their rewards
-                (Some(&u), Some(&v)) => Ord::cmp(
-                    &game.relevance_of(u).reward(),
-                    &game.relevance_of(v).reward(),
-                ),
-                // If the other profile ran out of nodes, this wins if the node benefits p0
-                (Some(&u), None) => match game.relevance_of(u).player() {
-                    Player::P0 => Ordering::Greater,
-                    Player::P1 => Ordering::Less,
-                },
-                // If the this profile ran out of nodes, this wins if the other node benefits p1
-                (None, Some(&u)) => match game.relevance_of(u).player() {
-                    Player::P0 => Ordering::Less,
-                    Player::P1 => Ordering::Greater,
-                },
-            };
-        }
-
-        // Compare the number of nodes visited before most relevant vertex of the loop
-        match game.relevance_of(self.most_relevant).player() {
-            // If P0 is winning a shorter path is better (order is reversed, less is greater).
-            Player::P0 => Ord::cmp(&self.count_before, &that.count_before).reverse(),
-            // If P0 is losing a longer path is better (order is normal).
-            Player::P1 => Ord::cmp(&self.count_before, &that.count_before),
-        }
     }
 }
 
@@ -397,5 +421,3 @@ fn set_minimal_distances(
         }
     }
 }
-
-// TODO: improve function
