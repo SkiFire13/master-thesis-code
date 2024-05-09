@@ -5,7 +5,7 @@ use std::slice;
 use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
-use crate::strategy::game::NodeData;
+use crate::strategy::game::NodeKind;
 
 use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 
@@ -107,14 +107,14 @@ impl<'a> Graph<'a> {
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
         match self.game.resolve(n) {
             // Successors of special nodes are only other special nodes.
-            NodeData::L0 => Left(&[NodeId::W1][..]),
-            NodeData::L1 => Left(&[NodeId::W0][..]),
-            NodeData::W0 => Left(&[NodeId::L1][..]),
-            NodeData::W1 => Left(&[NodeId::L0][..]),
+            NodeKind::L0 => Left(&[NodeId::W1][..]),
+            NodeKind::L1 => Left(&[NodeId::W0][..]),
+            NodeKind::W0 => Left(&[NodeId::L1][..]),
+            NodeKind::W1 => Left(&[NodeId::L0][..]),
             // The successor of a p0 node is the p1 node given by the strategy.
-            NodeData::P0(n) => Left(slice::from_ref(&self.game.p1_ids[self.strategy[n]])),
+            NodeKind::P0(n) => Left(slice::from_ref(&self.game.p1_ids[self.strategy[n]])),
             // The successors of a p1 node are all those recorded in the current game.
-            NodeData::P1(n) => Right(self.game.p1_succs[n].iter().map(|&n| self.game.p0_ids[n])),
+            NodeKind::P1(n) => Right(self.game.p1_succs[n].iter().map(|&n| self.game.p0_ids[n])),
         }
         .map_left(|slice| slice.iter().copied())
     }
@@ -122,20 +122,20 @@ impl<'a> Graph<'a> {
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         match self.game.resolve(n) {
             // The predecessor of a L node is just the corresponding W node.
-            NodeData::L0 => Left(&[NodeId::W1][..]),
-            NodeData::L1 => Left(&[NodeId::W0][..]),
+            NodeKind::L0 => Left(&[NodeId::W1][..]),
+            NodeKind::L1 => Left(&[NodeId::W0][..]),
             // The predecessor of the W0 node is the empty P1 node
-            NodeData::W0 => Left(
+            NodeKind::W0 => Left(
                 self.game
                     .w0_pred()
                     .map_or(&[][..], |n| slice::from_ref(&self.game.p1_ids[n])),
             ),
             // The predecessor of the W1 node are all those P0 nodes with a false formula.
-            NodeData::W1 => Right(Right(self.game.w1_preds.iter())),
+            NodeKind::W1 => Right(Right(self.game.w1_preds.iter())),
             // The predecessors of a p0 node are all those recorded in the game.
-            NodeData::P0(n) => Right(Left(self.game.p0_preds[n].iter())),
+            NodeKind::P0(n) => Right(Left(self.game.p0_preds[n].iter())),
             // The predecessors of a p1 node are those given by the strategy.
-            NodeData::P1(n) => Right(Right(self.inverse_strategy[n].iter())),
+            NodeKind::P1(n) => Right(Right(self.inverse_strategy[n].iter())),
         }
         .map_left(|slice| slice.iter().copied())
         .map_right(|inner| inner.map_left(|iter| iter.map(|&n| self.game.p1_ids[n])))

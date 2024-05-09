@@ -17,7 +17,7 @@ impl NodeId {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum NodeData {
+pub enum NodeKind {
     L0,
     L1,
     W0,
@@ -37,7 +37,7 @@ pub struct Game {
     pub p1_set: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
 
     // Map between node ids
-    pub nodes: IndexVec<NodeId, NodeData>,
+    pub nodes: IndexVec<NodeId, NodeKind>,
     pub p0_ids: IndexVec<NodeP0Id, NodeId>,
     pub p1_ids: IndexVec<NodeP1Id, NodeId>,
 
@@ -59,11 +59,11 @@ impl Game {
             p1_set: IndexSet::new(),
 
             nodes: IndexVec::from(vec![
-                NodeData::W0,
-                NodeData::L0,
-                NodeData::W1,
-                NodeData::L1,
-                NodeData::P0(NodeP0Id(0)),
+                NodeKind::W0,
+                NodeKind::L0,
+                NodeKind::W1,
+                NodeKind::L1,
+                NodeKind::P0(NodeP0Id(0)),
             ]),
             p0_ids: IndexVec::from(vec![NodeId::INIT]),
             p1_ids: IndexVec::new(),
@@ -76,23 +76,23 @@ impl Game {
         }
     }
 
-    pub fn resolve(&self, n: NodeId) -> NodeData {
+    pub fn resolve(&self, n: NodeId) -> NodeKind {
         self.nodes[n]
     }
 
     pub fn relevance_of(&self, n: NodeId) -> Relevance {
         let rel = match self.resolve(n) {
-            NodeData::L0 => 1,
-            NodeData::L1 => 0,
-            NodeData::W0 => 0,
-            NodeData::W1 => 1,
-            NodeData::P0(n) => {
+            NodeKind::L0 => 1,
+            NodeKind::L1 => 0,
+            NodeKind::W0 => 0,
+            NodeKind::W1 => 1,
+            NodeKind::P0(n) => {
                 let (_, i) = self.p0_set[n];
                 let fix_type = self.formulas.eq_fix_types[i];
                 // TODO: Maybe optimize this to make it more compact?
                 2 * i.to_usize() + if let FixType::Min = fix_type { 0 } else { 1 }
             }
-            NodeData::P1(_) => 0,
+            NodeKind::P1(_) => 0,
         };
         Relevance(rel, n)
     }
