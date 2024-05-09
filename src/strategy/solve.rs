@@ -18,11 +18,8 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
     expand(&mut game, &IndexVec::from(vec![PlayProfile::default()]));
     // TODO: init/update W0/W1
 
-    let mut strategy = IndexVec::from(vec![NodeP1Id(0); game.p0_set.len()]);
-    // TODO: select initial strategy
-
-    // TMP to make it compile
-    let _: IndexVec<NodeP0Id, NodeP1Id> = strategy;
+    // Select initial strategy by picking a random successor for each p0 node.
+    let mut strategy = game.p0_succs.iter().map(|succs| succs[0]).collect();
 
     while todo!("(b, i) not in W0 or W1") {
         let profiles = valuation(&game, &strategy);
