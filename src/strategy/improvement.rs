@@ -10,7 +10,6 @@ use crate::strategy::game::NodeData;
 use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 
 // TODO: Use node/vertex consistently
-// TODO: Reduced graph on P0 strategy
 
 // Bitset or something similar?
 pub type Set<T> = std::collections::BTreeSet<T>;
