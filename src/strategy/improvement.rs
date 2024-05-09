@@ -6,6 +6,7 @@ use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
 use crate::strategy::game::NodeKind;
+use crate::symbolic::eq::{FixType, VarId};
 
 use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 
@@ -151,10 +152,29 @@ impl<'a> Graph<'a> {
     }
 
     fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + 'a {
-        if false {
-            return [].into_iter();
-        }
-        todo!()
+        let game = self.game;
+        let iter = |fix_type| {
+            game.p0_by_var
+                .iter()
+                .enumerate()
+                .filter(move |&(i, _)| game.formulas.eq_fix_types[VarId(i)] == fix_type)
+                .flat_map(|(_, nodes)| nodes)
+                .map(|&n0| self.game.p0_ids[n0])
+        };
+
+        // These has <=-1 reward and high node id
+        let p0_f1_nodes = iter(FixType::Min).rev();
+        // These have -1/0 reward and low node id
+        let wl_nodes = [NodeId::W1, NodeId::L0, NodeId::W0, NodeId::L1];
+        // These have 0 reward and bigger node id than W/L nodes
+        let p1_nodes = game.p1_ids.iter().copied();
+        // These have >=2 reward and are sorted by node id.
+        let p0_f0_nodes = iter(FixType::Max);
+
+        p0_f1_nodes
+            .chain(wl_nodes)
+            .chain(p1_nodes)
+            .chain(p0_f0_nodes)
     }
 }
 

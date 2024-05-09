@@ -15,7 +15,7 @@ impl Expr {
     pub const TOP: Expr = Expr::And(Vec::new());
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FixType {
     Min,
     Max,

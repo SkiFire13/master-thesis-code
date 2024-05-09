@@ -32,11 +32,11 @@ new_index!(pub index NodeP1Id);
 pub struct Game {
     pub formulas: EqsFormulas,
 
-    // Set of nodes, to given them an identity (the index in the set)
+    // Set of nodes, to give them an identity (the index in their set)
     pub p0_set: IndexSet<NodeP0Id, (BasisId, VarId)>,
     pub p1_set: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
 
-    // Map between node ids
+    // Map between node ids (assumed to also be sorted according to NodeId)
     pub nodes: IndexVec<NodeId, NodeKind>,
     pub p0_ids: IndexVec<NodeP0Id, NodeId>,
     pub p1_ids: IndexVec<NodeP1Id, NodeId>,
@@ -48,10 +48,17 @@ pub struct Game {
     // Successors of each node type
     pub p0_succs: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
     pub p1_succs: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+
+    // Player 0 nodes grouped by VarId, used for sorting by reward.
+    // Each inner vec is assumed to be sorted by NodeId.
+    pub p0_by_var: IndexVec<VarId, Vec<NodeP0Id>>,
 }
 
 impl Game {
     pub fn new(b: BasisId, i: VarId, formulas: EqsFormulas) -> Self {
+        let mut p0_by_var = IndexVec::from(vec![Vec::new(); formulas.var_count()]);
+        p0_by_var[i].push(NodeP0Id(0));
+
         Self {
             formulas,
 
@@ -73,6 +80,8 @@ impl Game {
             w1_preds: Vec::new(),
             p0_succs: IndexVec::new(),
             p1_succs: IndexVec::new(),
+
+            p0_by_var,
         }
     }
 
@@ -90,7 +99,7 @@ impl Game {
                 let (_, i) = self.p0_set[n];
                 let fix_type = self.formulas.eq_fix_types[i];
                 // TODO: Maybe optimize this to make it more compact?
-                2 * i.to_usize() + if let FixType::Min = fix_type { 0 } else { 1 }
+                2 * i.to_usize() + if fix_type == FixType::Min { 2 } else { 1 }
             }
             NodeKind::P1(_) => 0,
         };
