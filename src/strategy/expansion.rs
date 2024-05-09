@@ -27,7 +27,7 @@ pub fn expand(game: &mut Game) {
 
 fn e1(game: &mut Game) -> Vec<NodeData> {
     let init_node = NodeId::INIT;
-    let relevant_node = game.profiles[init_node.0].0;
+    let relevant_node = game.profiles[init_node].most_relevant;
 
     match game.relevance_of(relevant_node).player() {
         Player::P0 => {
@@ -57,7 +57,7 @@ fn e2(game: &mut Game, w: NodeData, mut add: impl FnMut(NodeData)) {
             todo!();
         }
         NodeData::P1(n) => {
-            for &bi in &game.nodes_p1[n.0] {
+            for &bi in &game.nodes_p1[n] {
                 if game.nodes_p0.get(&bi).is_none() {
                     let (idx, _) = game.nodes_p0.insert_full(bi);
                     add(NodeData::P0(NodeP0Id(idx)))

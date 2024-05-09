@@ -1,16 +1,18 @@
+use crate::index::IndexVec;
+
 use super::eq::{Expr, FixEq, FixType, VarId};
 
-pub fn normalize_sys(eqs: &[FixEq]) -> (Vec<FixEq>, Vec<VarId>) {
-    let mut new_eqs = Vec::new();
+pub fn normalize_sys(eqs: &[FixEq]) -> (IndexVec<VarId, FixEq>, IndexVec<VarId, VarId>) {
+    let mut new_eqs = IndexVec::new();
     let vars = eqs
         .iter()
         .map(|eq| normalize_expr(&eq.expr, eq.fix_type, &mut new_eqs))
-        .collect::<Vec<_>>();
+        .collect();
     (new_eqs, vars)
 }
 
-pub fn normalize_expr(expr: &Expr, fix_type: FixType, out: &mut Vec<FixEq>) -> VarId {
-    let normalize_many = |exprs: &[Expr], out: &mut Vec<FixEq>| {
+pub fn normalize_expr(expr: &Expr, fix_type: FixType, out: &mut IndexVec<VarId, FixEq>) -> VarId {
+    let normalize_many = |exprs: &[Expr], out: &mut IndexVec<VarId, FixEq>| {
         exprs
             .iter()
             .map(|expr| Expr::Var(normalize_expr(expr, fix_type, out)))
@@ -20,21 +22,22 @@ pub fn normalize_expr(expr: &Expr, fix_type: FixType, out: &mut Vec<FixEq>) -> V
     match expr {
         Expr::Var(x) => *x,
         Expr::And(children) => {
+            // TODO: No var in Eq and let var = out.push(...)
             let var = VarId(out.len());
             out.push(FixEq { var, fix_type, expr: Expr::BOT });
-            out[var.0].expr = Expr::And(normalize_many(children, out));
+            out[var].expr = Expr::And(normalize_many(children, out));
             var
         }
         Expr::Or(children) => {
             let var = VarId(out.len());
             out.push(FixEq { var, fix_type, expr: Expr::BOT });
-            out[var.0].expr = Expr::Or(normalize_many(children, out));
+            out[var].expr = Expr::Or(normalize_many(children, out));
             var
         }
         Expr::Fun(fun, args) => {
             let var = VarId(out.len());
             out.push(FixEq { var, fix_type, expr: Expr::And(Vec::new()) });
-            out[var.0].expr = Expr::Fun(*fun, normalize_many(args, out));
+            out[var].expr = Expr::Fun(*fun, normalize_many(args, out));
             var
         }
     }

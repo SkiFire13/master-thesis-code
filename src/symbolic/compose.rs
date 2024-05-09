@@ -1,23 +1,26 @@
+use crate::index::IndexVec;
+
 use super::eq::{Expr, FixEq, FixType, FunId, VarId};
 use super::formula::{simplify_and, simplify_or, BasisId, Formula};
 
 pub struct FunsFormulas {
-    formulas: Vec<Vec<Formula>>,
+    formulas: IndexVec<FunId, IndexVec<BasisId, Formula>>,
 }
 
 impl FunsFormulas {
     pub fn get(&self, basis: BasisId, fun: FunId) -> &Formula {
-        &self.formulas[fun.0][basis.0]
+        &self.formulas[fun][basis]
     }
 }
 
 pub struct EqsFormulas {
+    // TODO: Make this an IndexVec<IndexVec>> ?
     /// 2D array with BasisId indexing columns and VarId indexing rows.
     pub moves: Vec<Formula>,
     /// Number of columns / length of a row.
     basis_count: usize,
     /// Type of fixpoint for each equation.
-    pub eq_fix_types: Vec<FixType>,
+    pub eq_fix_types: IndexVec<VarId, FixType>,
 }
 
 impl EqsFormulas {

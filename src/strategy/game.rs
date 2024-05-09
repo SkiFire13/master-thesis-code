@@ -1,15 +1,13 @@
 use std::cmp::Reverse;
 
-use indexmap::IndexSet;
-
+use crate::index::{new_index, AsIndex, IndexSet, IndexVec};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::BasisId;
 
 use super::improvement::PlayProfile;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NodeId(pub usize);
+new_index!(pub index NodeId);
 
 impl NodeId {
     pub const W0: NodeId = NodeId(0);
@@ -30,27 +28,24 @@ pub enum NodeData {
     P1(NodeP1Id),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NodeP0Id(pub usize);
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NodeP1Id(pub usize);
+new_index!(pub index NodeP0Id);
+new_index!(pub index NodeP1Id);
 
 pub struct Game {
     pub formulas: EqsFormulas,
 
     pub nodes: Vec<NodeData>,
     // TODO: informations about the node and in/out edges
-    pub nodes_p0: IndexSet<(BasisId, VarId)>,
+    pub nodes_p0: IndexSet<NodeP0Id, (BasisId, VarId)>,
     // TODO: informations about the node and in/out edges
-    pub nodes_p1: IndexSet<Vec<(BasisId, VarId)>>,
+    pub nodes_p1: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
 
     // pub successors_p0: Vec<Vec<NodeP1Id>>,
     // pub successors_p1: Vec<Vec<NodeP0Id>>,
     // pub predecessors_p0: Vec<Vec<NodeP1Id>>,
     // pub predecessors_p1: Vec<Vec<NodeP0Id>>,
     // TODO: Something for sorted by reward?
-    pub profiles: Vec<PlayProfile>,
+    pub profiles: IndexVec<NodeId, PlayProfile>,
 }
 
 impl Game {
@@ -70,7 +65,7 @@ impl Game {
             // successors_p1: Vec::new(),
             // predecessors_p0: Vec::new(),
             // predecessors_p1: Vec::new(),
-            profiles: Vec::new(),
+            profiles: IndexVec::new(),
         }
     }
 
@@ -85,10 +80,10 @@ impl Game {
             NodeData::W1 => 1,
             NodeData::L1 => 0,
             NodeData::P0(n) => {
-                let (_, i) = self.nodes_p0[n.0];
-                let fix_type = self.formulas.eq_fix_types[i.0];
+                let (_, i) = self.nodes_p0[n];
+                let fix_type = self.formulas.eq_fix_types[i];
                 // TODO: Maybe optimize this to make it more compact?
-                2 * i.0 + if let FixType::Min = fix_type { 0 } else { 1 }
+                2 * i.to_usize() + if let FixType::Min = fix_type { 0 } else { 1 }
             }
             NodeData::P1(_) => 0,
         };

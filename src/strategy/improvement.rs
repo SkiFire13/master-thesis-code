@@ -54,29 +54,28 @@ impl<'a> Graph<'a> {
     }
 }
 
-// TODO: Give names
 #[derive(Clone, Default)]
-pub struct PlayProfile(
+pub struct PlayProfile {
     /// Most relevant node of the cycle.
-    pub NodeId,
+    pub most_relevant: NodeId,
     /// Nodes more relevant visited before the cycle, sorted by most relevant first.
-    pub Vec<NodeId>,
+    pub relevant_before: Vec<NodeId>,
     /// Number of nodes visited before the most relevant of the cycle.
-    pub usize,
-);
+    pub count_before: usize,
+}
 
 impl PlayProfile {
     // TODO: Use Game or make Graph public
     pub fn cmp(&self, other: &PlayProfile, game: &Game) -> Ordering {
         // Compare the most relevant vertex of the cycle
-        if self.0 != other.0 {
-            let this_rew = game.relevance_of(self.0).reward();
-            let that_rew = game.relevance_of(other.0).reward();
+        if self.most_relevant != other.most_relevant {
+            let this_rew = game.relevance_of(self.most_relevant).reward();
+            let that_rew = game.relevance_of(other.most_relevant).reward();
             return Ord::cmp(&this_rew, &that_rew);
         }
 
-        let mut this_iter = self.1.iter();
-        let mut that_iter = other.1.iter();
+        let mut this_iter = self.relevant_before.iter();
+        let mut that_iter = other.relevant_before.iter();
         loop {
             return match (this_iter.next(), that_iter.next()) {
                 (None, None) => break,
@@ -97,11 +96,11 @@ impl PlayProfile {
         }
 
         // Compare the number of nodes visited before most relevant vertex of the loop
-        match game.relevance_of(self.0).player() {
+        match game.relevance_of(self.most_relevant).player() {
             // If P0 is winning a shorter path is better (order is reversed, less is greater).
-            Player::P0 => Ord::cmp(&self.2, &other.2).reverse(),
+            Player::P0 => Ord::cmp(&self.count_before, &other.count_before).reverse(),
             // If P0 is losing a longer path is better (order is normal).
-            Player::P1 => Ord::cmp(&self.2, &other.2),
+            Player::P1 => Ord::cmp(&self.count_before, &other.count_before),
         }
     }
 }
@@ -218,7 +217,7 @@ fn subevaluation(
 
     // All these nodes will be part of cycles that contain w as most relevant node.
     for &v in &*graph.k_nodes {
-        profiles[v.0].0 = w;
+        profiles[v.0].most_relevant = w;
     }
 
     // Iterate over K with descending relevance order for those nodes that have
@@ -238,7 +237,7 @@ fn subevaluation(
     // when comparing profiles.
     for v in &*graph.k_nodes {
         profiles[v.0]
-            .1
+            .relevant_before
             .sort_by_key(|&n| Reverse(graph.relevance_of(n)));
     }
 
@@ -255,7 +254,7 @@ fn prevent_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &m
 
     // Update profiles of nodes whose path must go through u.
     for &v in graph.k_nodes.iter().filter(|v| !u_set.contains(v)) {
-        profiles[v.0].1.push(u);
+        profiles[v.0].relevant_before.push(u);
     }
 
     // Remove edges that would make paths go through u when it's possible
@@ -274,7 +273,7 @@ fn force_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &mut
 
     // Update profiles of nodes whose path can go through u.
     for &v in graph.k_nodes.iter().filter(|v| u_set.contains(v)) {
-        profiles[v.0].1.push(u);
+        profiles[v.0].relevant_before.push(u);
     }
 
     // Remove edges that would make paths not go through u when it's possible
@@ -316,7 +315,8 @@ fn set_maximal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut 
     remaining_successors.remove(&w);
 
     while let Some((v, d)) = queue.pop_front() {
-        profiles[v.0].2 = d;
+        profiles[v.0].count_before = d;
+
         for u in graph.predecessors_of(v).filter(|&u| u != w) {
             // Decrease number of remaining successors to visit
             let remaining = remaining_successors.get_mut(&u).unwrap();
@@ -337,7 +337,7 @@ fn set_minimal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut 
     // Backward BFS
     while let Some((v, d)) = queue.pop_front() {
         if seen.insert(v) {
-            profiles[v.0].2 = d;
+            profiles[v.0].count_before = d;
             queue.extend(graph.predecessors_of(v).map(|u| (u, d + 1)))
         }
     }

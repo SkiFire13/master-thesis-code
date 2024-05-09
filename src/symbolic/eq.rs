@@ -1,8 +1,7 @@
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VarId(pub usize);
+use crate::index::new_index;
 
-#[derive(Clone, Copy)]
-pub struct FunId(pub usize);
+new_index!(pub index VarId);
+new_index!(pub index FunId);
 
 pub enum Expr {
     Var(VarId),

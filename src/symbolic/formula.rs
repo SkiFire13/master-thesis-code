@@ -1,7 +1,8 @@
+use crate::index::new_index;
+
 use super::eq::VarId;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BasisId(pub usize);
+new_index!(pub index BasisId);
 
 pub enum Formula {
     Atom(BasisId, VarId),
