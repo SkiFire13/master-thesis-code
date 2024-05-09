@@ -3,7 +3,7 @@ use std::cmp::Reverse;
 use crate::index::{new_index, AsIndex, IndexSet, IndexVec};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
-use crate::symbolic::formula::BasisId;
+use crate::symbolic::formula::{BasisId, Formula};
 
 use super::improvement::PlayProfile;
 
@@ -20,10 +20,10 @@ impl NodeId {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeData {
-    W0,
     L0,
-    W1,
     L1,
+    W0,
+    W1,
     P0(NodeP0Id),
     P1(NodeP1Id),
 }
@@ -34,20 +34,24 @@ new_index!(pub index NodeP1Id);
 pub struct Game {
     pub formulas: EqsFormulas,
 
+    // Set of nodes, to given them an identity (the index in the set)
+    pub p0_set: IndexSet<NodeP0Id, (BasisId, VarId)>,
+    pub p1_set: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
+
+    // Map between node ids
     pub nodes: IndexVec<NodeId, NodeData>,
-    // TODO: informations about the node and in/out edges
-    pub nodes_p0: IndexSet<NodeP0Id, (BasisId, VarId)>,
-    // TODO: informations about the node and in/out edges
-    pub nodes_p1: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
+    pub p0_ids: IndexVec<NodeP0Id, NodeId>,
+    pub p1_ids: IndexVec<NodeP1Id, NodeId>,
 
-    pub p0_node_ids: IndexVec<NodeP0Id, NodeId>,
-    pub p1_node_ids: IndexVec<NodeP1Id, NodeId>,
+    // Predecessors of each node type
+    pub p0_preds: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
+    pub p1_preds: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+    pub w1_preds: Vec<NodeP0Id>,
+    // Successors of each node type
+    pub p0_succs: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
+    pub p1_succs: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
 
-    // pub successors_p0: Vec<Vec<NodeP1Id>>,
-    // pub successors_p1: Vec<Vec<NodeP0Id>>,
-    // pub predecessors_p0: Vec<Vec<NodeP1Id>>,
-    // pub predecessors_p1: Vec<Vec<NodeP0Id>>,
-    // TODO: Something for sorted by reward?
+    // Play profiles of the last iteration
     pub profiles: IndexVec<NodeId, PlayProfile>,
 }
 
@@ -55,6 +59,10 @@ impl Game {
     pub fn new(b: BasisId, i: VarId, formulas: EqsFormulas) -> Self {
         Self {
             formulas,
+
+            p0_set: IndexSet::from([(b, i)]),
+            p1_set: IndexSet::new(),
+
             nodes: IndexVec::from(vec![
                 NodeData::W0,
                 NodeData::L0,
@@ -62,14 +70,15 @@ impl Game {
                 NodeData::L1,
                 NodeData::P0(NodeP0Id(0)),
             ]),
-            nodes_p0: IndexSet::from([(b, i)]),
-            nodes_p1: IndexSet::new(),
-            p0_node_ids: IndexVec::from(vec![NodeId::INIT]),
-            p1_node_ids: IndexVec::new(),
-            // successors_p0: Vec::new(),
-            // successors_p1: Vec::new(),
-            // predecessors_p0: Vec::new(),
-            // predecessors_p1: Vec::new(),
+            p0_ids: IndexVec::from(vec![NodeId::INIT]),
+            p1_ids: IndexVec::new(),
+
+            p0_preds: IndexVec::new(),
+            p1_preds: IndexVec::new(),
+            w1_preds: Vec::new(),
+            p0_succs: IndexVec::new(),
+            p1_succs: IndexVec::new(),
+
             profiles: IndexVec::new(),
         }
     }
@@ -80,12 +89,12 @@ impl Game {
 
     pub fn relevance_of(&self, n: NodeId) -> Relevance {
         let rel = match self.resolve(n) {
-            NodeData::W0 => 0,
             NodeData::L0 => 1,
-            NodeData::W1 => 1,
             NodeData::L1 => 0,
+            NodeData::W0 => 0,
+            NodeData::W1 => 1,
             NodeData::P0(n) => {
-                let (_, i) = self.nodes_p0[n];
+                let (_, i) = self.p0_set[n];
                 let fix_type = self.formulas.eq_fix_types[i];
                 // TODO: Maybe optimize this to make it more compact?
                 2 * i.to_usize() + if let FixType::Min = fix_type { 0 } else { 1 }
@@ -93,6 +102,15 @@ impl Game {
             NodeData::P1(_) => 0,
         };
         Relevance(rel, n)
+    }
+
+    pub fn formula_of(&self, n: NodeP0Id) -> &Formula {
+        let (b, i) = self.p0_set[n];
+        self.formulas.get(b, i)
+    }
+
+    pub fn w0_pred(&self) -> Option<NodeP1Id> {
+        self.p1_set.get_index_of(&Vec::new()).map(NodeP1Id)
     }
 }
 

@@ -2,6 +2,8 @@ use std::cmp::{Ordering, Reverse};
 use std::collections::VecDeque;
 use std::slice;
 
+use either::Either::{Left, Right};
+
 use crate::index::IndexVec;
 use crate::strategy::game::NodeData;
 
@@ -17,29 +19,49 @@ pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 struct Graph<'a> {
     game: &'a Game,
     strategy: &'a IndexVec<NodeP0Id, NodeP1Id>,
-    // TODO: inverse_strategy
+    inverse_strategy: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
 }
 
 impl<'a> Graph<'a> {
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
         match self.game.resolve(n) {
-            NodeData::L0 => &[NodeId::W1],
-            NodeData::W1 => &[NodeId::L0],
-            NodeData::W0 => &[NodeId::L1],
-            NodeData::L1 => &[NodeId::W0],
-            NodeData::P0(n) => slice::from_ref(&self.game.p1_node_ids[self.strategy[n]]),
-            NodeData::P1(n) => todo!("Get P1 successors"),
+            // Successors of special nodes are only other special nodes.
+            NodeData::L0 => Left(&[NodeId::W1][..]),
+            NodeData::L1 => Left(&[NodeId::W0][..]),
+            NodeData::W0 => Left(&[NodeId::L1][..]),
+            NodeData::W1 => Left(&[NodeId::L0][..]),
+            // The successor of a p0 node is the p1 node given by the strategy.
+            NodeData::P0(n) => Left(slice::from_ref(&self.game.p1_ids[self.strategy[n]])),
+            // The successors of a p1 node are all those recorded in the current game.
+            NodeData::P1(n) => Right(self.game.p1_succs[n].iter().map(|&n| self.game.p0_ids[n])),
         }
-        .iter()
-        .copied()
+        .map_left(|slice| slice.iter().copied())
     }
 
-    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
-        _ = n;
-        if false {
-            return [].into_iter();
+    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        match self.game.resolve(n) {
+            // The predecessor of a L node is just the corresponding W node.
+            NodeData::L0 => Left(&[NodeId::W1][..]),
+            NodeData::L1 => Left(&[NodeId::W0][..]),
+            // The predecessor of the W0 node is the empty P1 node
+            NodeData::W0 => Left(
+                self.game
+                    .w0_pred()
+                    .map_or(&[][..], |n| slice::from_ref(&self.game.p1_ids[n])),
+            ),
+            // The predecessor of the W1 node are all those P0 nodes with a false formula.
+            NodeData::W1 => Right(Right(self.game.w1_preds.iter())),
+            // TODO
+            NodeData::P0(n) => Right(Left(self.game.p0_preds[n].iter())),
+            // TODO
+            NodeData::P1(n) => Right(Right(self.inverse_strategy[n].iter())),
         }
-        todo!()
+        .map_left(|slice| slice.iter().copied())
+        .map_right(|inner| {
+            inner
+                .map_left(|iter| iter.map(|&n| self.game.p1_ids[n]))
+                .map_right(|iter| iter.map(|&n| self.game.p0_ids[n]))
+        })
     }
 
     fn node_count(&self) -> usize {
@@ -121,7 +143,12 @@ pub fn valuation(
     game: &Game,
     strategy: &IndexVec<NodeP0Id, NodeP1Id>,
 ) -> IndexVec<NodeId, PlayProfile> {
-    let graph = &Graph { game, strategy };
+    // Build graph with p0 moves restricted to the given strategy.
+    let mut inverse_strategy = IndexVec::from(vec![Vec::new(); game.p1_set.len()]);
+    for (n0, &n1) in strategy.iter().enumerate() {
+        inverse_strategy[n1].push(NodeP0Id(n0));
+    }
+    let graph = &Graph { game, strategy, inverse_strategy };
 
     // TODO: Bitset or something similar?
     let mut evaluated = Set::new();
@@ -267,13 +294,18 @@ fn subevaluation(
 }
 
 /// Prevent any path that can go through u from doing so.
-fn prevent_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &mut [PlayProfile]) {
+fn prevent_paths(
+    graph: &mut RestrictedGraph,
+    w: NodeId,
+    u: NodeId,
+    profiles: &mut IndexVec<NodeId, PlayProfile>,
+) {
     // Find nodes that can reach w without going through u.
     let (u_nodes, u_set) = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
 
     // Update profiles of nodes whose path must go through u.
     for &v in graph.k_nodes.iter().filter(|v| !u_set.contains(v)) {
-        profiles[v.0].relevant_before.push(u);
+        profiles[v].relevant_before.push(u);
     }
 
     // Remove edges that would make paths go through u when it's possible
@@ -286,13 +318,18 @@ fn prevent_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &m
 }
 
 /// Make any path that can go through u do so.
-fn force_paths(graph: &mut RestrictedGraph, w: NodeId, u: NodeId, profiles: &mut [PlayProfile]) {
+fn force_paths(
+    graph: &mut RestrictedGraph,
+    w: NodeId,
+    u: NodeId,
+    profiles: &mut IndexVec<NodeId, PlayProfile>,
+) {
     // Find nodes that can reach u without going through w.
     let (u_nodes, u_set) = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
 
     // Update profiles of nodes whose path can go through u.
     for &v in graph.k_nodes.iter().filter(|v| u_set.contains(v)) {
-        profiles[v.0].relevant_before.push(u);
+        profiles[v].relevant_before.push(u);
     }
 
     // Remove edges that would make paths not go through u when it's possible

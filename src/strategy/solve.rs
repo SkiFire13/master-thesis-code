@@ -16,7 +16,7 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
     expand(&mut game);
     // TODO: init/update W0/W1
 
-    let mut strategy = IndexVec::from(vec![NodeP1Id(0); game.nodes_p0.len()]);
+    let mut strategy = IndexVec::from(vec![NodeP1Id(0); game.p0_set.len()]);
     // TODO: select initial strategy
 
     // TMP to make it compile

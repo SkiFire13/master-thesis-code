@@ -52,14 +52,17 @@ fn e2(game: &mut Game, w: NodeData, mut add: impl FnMut(NodeData)) {
         NodeData::L0 => add(NodeData::W1),
         NodeData::W1 => add(NodeData::L0),
         NodeData::L1 => add(NodeData::W0),
+        NodeData::P0(n) if game.formula_of(n).is_false() => add(NodeData::W1),
+        NodeData::P1(n) if game.p1_set[n].is_empty() => add(NodeData::W0),
         NodeData::P0(n) => {
             // TODO: apply decisions and stuff
             todo!();
         }
         NodeData::P1(n) => {
-            for &bi in &game.nodes_p1[n] {
-                if game.nodes_p0.get(&bi).is_none() {
-                    let (idx, _) = game.nodes_p0.insert_full(bi);
+            for &bi in &game.p1_set[n] {
+                if game.p0_set.get(&bi).is_none() {
+                    // TODO: Better add node, update succ/pred etc etc
+                    let (idx, _) = game.p0_set.insert_full(bi);
                     add(NodeData::P0(NodeP0Id(idx)))
                     // TODO: Add forward and backward edges
 
