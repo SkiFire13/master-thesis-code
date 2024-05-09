@@ -1,6 +1,6 @@
 use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
-use crate::strategy::game::{Game, NodeP0Id, NodeP1Id};
+use crate::strategy::game::Game;
 use crate::strategy::improvement::{improve, valuation, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
