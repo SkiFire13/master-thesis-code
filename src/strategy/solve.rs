@@ -1,5 +1,6 @@
+use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
-use crate::strategy::game::{Game, NodeP1Id};
+use crate::strategy::game::{Game, NodeP0Id, NodeP1Id};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisId;
@@ -15,8 +16,11 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
     expand(&mut game);
     // TODO: init/update W0/W1
 
-    let mut strategy = vec![NodeP1Id(0); game.nodes_p0.len()];
+    let mut strategy = IndexVec::from(vec![NodeP1Id(0); game.nodes_p0.len()]);
     // TODO: select initial strategy
+
+    // TMP to make it compile
+    let _: IndexVec<NodeP0Id, NodeP1Id> = strategy;
 
     while todo!("(b, i) not in W0 or W1") {
         // TODO: valuation

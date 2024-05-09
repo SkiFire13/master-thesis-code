@@ -1,7 +1,9 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::VecDeque;
 
-use super::game::{Game, NodeId, Player, Relevance};
+use crate::index::IndexVec;
+
+use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 
 // TODO: Use node/vertex consistently
 // TODO: Reduced graph on P0 strategy
@@ -12,7 +14,7 @@ pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 
 struct Graph<'a> {
     game: &'a Game,
-    strategy: &'a [NodeId],
+    strategy: &'a IndexVec<NodeP0Id, NodeP1Id>,
 }
 
 impl<'a> Graph<'a> {
@@ -47,11 +49,6 @@ impl<'a> Graph<'a> {
         }
         todo!()
     }
-
-    fn successors_count_of(&self, n: NodeId) -> usize {
-        _ = n;
-        todo!()
-    }
 }
 
 #[derive(Clone, Default)]
@@ -74,20 +71,28 @@ impl PlayProfile {
             return Ord::cmp(&this_rew, &that_rew);
         }
 
+        // Compare the set of more relevant nodes visited before the cycle
         let mut this_iter = self.relevant_before.iter();
         let mut that_iter = other.relevant_before.iter();
         loop {
+            // The vecs are sorted by most relevant first so this will compare the
+            // most relevant of each set until one has a more relevant one or runs out of nodes.
             return match (this_iter.next(), that_iter.next()) {
+                // If both ran out of nodes they are the same
                 (None, None) => break,
+                // Ignore when both have the same node.
                 (Some(&u), Some(&v)) if u == v => continue,
+                // If the nodes are different, compare their rewards
                 (Some(&u), Some(&v)) => Ord::cmp(
                     &game.relevance_of(u).reward(),
                     &game.relevance_of(v).reward(),
                 ),
+                // If the other profile ran out of nodes, this wins if the node benefits p0
                 (Some(&u), None) => match game.relevance_of(u).player() {
                     Player::P0 => Ordering::Greater,
                     Player::P1 => Ordering::Less,
                 },
+                // If the this profile ran out of nodes, this wins if the other node benefits p1
                 (None, Some(&u)) => match game.relevance_of(u).player() {
                     Player::P0 => Ordering::Less,
                     Player::P1 => Ordering::Greater,
@@ -105,13 +110,15 @@ impl PlayProfile {
     }
 }
 
-// TODO: Graph here should be restricted to player 1 moves
-pub fn valuation(game: &Game, strategy: &[NodeId]) -> Vec<PlayProfile> {
+pub fn valuation(
+    game: &Game,
+    strategy: &IndexVec<NodeP0Id, NodeP1Id>,
+) -> IndexVec<NodeId, PlayProfile> {
     let graph = &Graph { game, strategy };
 
     // TODO: Bitset or something similar?
     let mut evaluated = Set::new();
-    let mut profiles = vec![PlayProfile::default(); graph.node_count()];
+    let mut profiles = IndexVec::from(vec![PlayProfile::default(); graph.node_count()]);
 
     // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
     // At each iteration we will try to fix all the loops that go through w, if w is not
@@ -176,8 +183,13 @@ impl<'a> RestrictedGraph<'a> {
     }
 
     fn successors_count_of(&self, v: NodeId) -> usize {
-        // TODO: this need to account for edges that go outside K
-        self.base.successors_count_of(v) - self.removed_successors_count.get(&v).unwrap_or(&0)
+        // Take all successors and consider only those in the original K.
+        // Then remove from the count those edges that were removed.
+        self.base
+            .successors_of(v)
+            .filter(|u| self.k_set.contains(u))
+            .count()
+            - self.removed_successors_count.get(&v).unwrap_or(&0)
     }
 
     fn all_successors_of(&self, v: NodeId) -> impl Iterator<Item = NodeId> + 'a {
@@ -200,7 +212,7 @@ fn subevaluation(
     w: NodeId,
     k_nodes: &mut [NodeId],
     k_set: &Set<NodeId>,
-    profiles: &mut [PlayProfile],
+    profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
     // Sort K by relevance, for the loop later on.
     k_nodes.sort_by_key(|&v| graph.relevance_of(v));
@@ -217,7 +229,7 @@ fn subevaluation(
 
     // All these nodes will be part of cycles that contain w as most relevant node.
     for &v in &*graph.k_nodes {
-        profiles[v.0].most_relevant = w;
+        profiles[v].most_relevant = w;
     }
 
     // Iterate over K with descending relevance order for those nodes that have
@@ -235,8 +247,8 @@ fn subevaluation(
 
     // Extra: sort the nodes in the profile by their relevance, as that will help
     // when comparing profiles.
-    for v in &*graph.k_nodes {
-        profiles[v.0]
+    for &v in &*graph.k_nodes {
+        profiles[v]
             .relevant_before
             .sort_by_key(|&n| Reverse(graph.relevance_of(n)));
     }
@@ -304,7 +316,11 @@ where
     (nodes, set)
 }
 
-fn set_maximal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut [PlayProfile]) {
+fn set_maximal_distances(
+    graph: &mut RestrictedGraph,
+    w: NodeId,
+    profiles: &mut IndexVec<NodeId, PlayProfile>,
+) {
     let mut remaining_successors = graph
         .k_nodes
         .iter()
@@ -312,10 +328,8 @@ fn set_maximal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut 
         .collect::<NodeMap<_>>();
     let mut queue = VecDeque::from([(w, 0)]);
 
-    remaining_successors.remove(&w);
-
     while let Some((v, d)) = queue.pop_front() {
-        profiles[v.0].count_before = d;
+        profiles[v].count_before = d;
 
         for u in graph.predecessors_of(v).filter(|&u| u != w) {
             // Decrease number of remaining successors to visit
@@ -330,14 +344,18 @@ fn set_maximal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut 
     }
 }
 
-fn set_minimal_distances(graph: &mut RestrictedGraph, w: NodeId, profiles: &mut [PlayProfile]) {
+fn set_minimal_distances(
+    graph: &mut RestrictedGraph,
+    w: NodeId,
+    profiles: &mut IndexVec<NodeId, PlayProfile>,
+) {
     let mut seen = Set::new();
     let mut queue = VecDeque::from([(w, 0)]);
 
     // Backward BFS
     while let Some((v, d)) = queue.pop_front() {
         if seen.insert(v) {
-            profiles[v.0].count_before = d;
+            profiles[v].count_before = d;
             queue.extend(graph.predecessors_of(v).map(|u| (u, d + 1)))
         }
     }

@@ -23,7 +23,7 @@ impl<I, T> DerefMut for IndexVec<I, T> {
 
 impl<I: AsIndex, T> IndexVec<I, T> {
     pub fn new() -> Self {
-        Self { vec: Vec::new(), _marker: PhantomData }
+        Vec::new().into()
     }
 
     pub fn push(&mut self, value: T) -> I {
@@ -47,9 +47,15 @@ impl<I: AsIndex, T> IndexMut<I> for IndexVec<I, T> {
     }
 }
 
+impl<I, T> From<Vec<T>> for IndexVec<I, T> {
+    fn from(value: Vec<T>) -> Self {
+        Self { vec: value, _marker: PhantomData }
+    }
+}
+
 impl<I, T> FromIterator<T> for IndexVec<I, T> {
     fn from_iter<IT: IntoIterator<Item = T>>(iter: IT) -> Self {
-        Self { vec: Vec::from_iter(iter), _marker: PhantomData }
+        Vec::from_iter(iter).into()
     }
 }
 
