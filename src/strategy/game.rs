@@ -52,6 +52,9 @@ pub struct Game {
     // Player 0 nodes grouped by VarId, used for sorting by reward.
     // Each inner vec is assumed to be sorted by NodeId.
     pub p0_by_var: IndexVec<VarId, Vec<NodeP0Id>>,
+    // TODO: w0: Set<NodeId>,
+    // TODO: w1: Set<NodeId>,
+    // TODO: support for incrementally extending w0 and w1
 }
 
 impl Game {

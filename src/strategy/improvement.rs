@@ -366,7 +366,7 @@ fn force_paths(
     let u_set = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
 
     // Update profiles of nodes whose path can go through u.
-    for &v in graph.k_nodes.iter().filter(|v| u_set.contains(v)) {
+    for &v in &u_set {
         profiles[v].relevant_before.push(u);
     }
 
