@@ -149,5 +149,6 @@ impl Relevance {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Reward {
     P1(Reverse<Relevance>),
+    Neutral,
     P0(Relevance),
 }

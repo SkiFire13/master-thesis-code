@@ -1,7 +1,8 @@
 use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
 use crate::strategy::game::Game;
-use crate::strategy::improvement::{improve, valuation, PlayProfile};
+use crate::strategy::improvement::{improve, valuation};
+use crate::strategy::profile::PlayProfile;
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisId;
