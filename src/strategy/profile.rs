@@ -15,31 +15,34 @@ pub struct PlayProfile {
 impl PlayProfile {
     pub fn cmp<'a>(&'a self, that: &'a PlayProfile, gr: impl GetRelevance) -> Ordering {
         // Compare the most relevant vertex of the cycle
-        if self.most_relevant != that.most_relevant {
+        let cmp_most_relevant = || {
             let this_rew = gr.relevance_of(self.most_relevant).reward();
             let that_rew = gr.relevance_of(that.most_relevant).reward();
-            return Ord::cmp(&this_rew, &that_rew);
-        }
+            Ord::cmp(&this_rew, &that_rew)
+        };
 
         // Compare the set of more relevant nodes visited before the cycle
-        let rewards_before = |p: &'a PlayProfile| {
-            p.relevant_before
-                .iter()
-                .map(|&u| gr.relevance_of(u).reward())
-                .chain([Reward::Neutral])
+        let cmp_relevant_before = || {
+            let rewards_before = |p: &'a PlayProfile| {
+                p.relevant_before
+                    .iter()
+                    .map(|&u| gr.relevance_of(u).reward())
+                    .chain([Reward::Neutral])
+            };
+            Iterator::cmp(rewards_before(self), rewards_before(that))
         };
-        match Iterator::cmp(rewards_before(self), rewards_before(that)) {
-            Ordering::Equal => {}
-            ordering => return ordering,
-        }
 
         // Compare the number of nodes visited before most relevant vertex of the loop
-        match gr.relevance_of(self.most_relevant).player() {
+        let cmp_count_before = || match gr.relevance_of(self.most_relevant).player() {
             // If P0 is winning a shorter path is better (order is reversed, less is greater).
             Player::P0 => Ord::cmp(&self.count_before, &that.count_before).reverse(),
             // If P0 is losing a longer path is better (order is normal).
             Player::P1 => Ord::cmp(&self.count_before, &that.count_before),
-        }
+        };
+
+        cmp_most_relevant()
+            .then_with(cmp_relevant_before)
+            .then_with(cmp_count_before)
     }
 }
 
