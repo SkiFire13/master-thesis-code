@@ -13,24 +13,27 @@ pub struct PlayProfile {
 }
 
 impl PlayProfile {
-    pub fn cmp<'a>(&'a self, that: &'a PlayProfile, gr: impl GetRelevance) -> Ordering {
+    fn rewards_before<'a>(
+        &'a self,
+        gr: &'a impl GetRelevance,
+    ) -> impl Iterator<Item = Reward> + 'a {
+        self.relevant_before
+            .iter()
+            .map(move |&u| gr.reward_of(u))
+            .chain([Reward::Neutral])
+    }
+
+    pub fn cmp<'a>(&'a self, that: &'a PlayProfile, gr: &impl GetRelevance) -> Ordering {
         // Compare the most relevant vertex of the cycle
         let cmp_most_relevant = || {
-            let this_rew = gr.relevance_of(self.most_relevant).reward();
-            let that_rew = gr.relevance_of(that.most_relevant).reward();
+            let this_rew = gr.reward_of(self.most_relevant);
+            let that_rew = gr.reward_of(that.most_relevant);
             Ord::cmp(&this_rew, &that_rew)
         };
 
         // Compare the set of more relevant nodes visited before the cycle
-        let cmp_relevant_before = || {
-            let rewards_before = |p: &'a PlayProfile| {
-                p.relevant_before
-                    .iter()
-                    .map(|&u| gr.relevance_of(u).reward())
-                    .chain([Reward::Neutral])
-            };
-            Iterator::cmp(rewards_before(self), rewards_before(that))
-        };
+        let cmp_relevant_before =
+            || Iterator::cmp(self.rewards_before(gr), that.rewards_before(gr));
 
         // Compare the number of nodes visited before most relevant vertex of the loop
         let cmp_count_before = || match gr.relevance_of(self.most_relevant).player() {
@@ -48,9 +51,13 @@ impl PlayProfile {
 
 pub trait GetRelevance {
     fn relevance_of(&self, u: NodeId) -> Relevance;
+
+    fn reward_of(&self, u: NodeId) -> Reward {
+        self.relevance_of(u).reward()
+    }
 }
 
-impl<'a> GetRelevance for &'a Game {
+impl<'a> GetRelevance for Game {
     fn relevance_of(&self, u: NodeId) -> Relevance {
         (*self).relevance_of(u)
     }
