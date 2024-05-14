@@ -1,4 +1,7 @@
 use std::cmp::Reverse;
+use std::slice;
+
+use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexSet, IndexVec};
 use crate::symbolic::compose::EqsFormulas;
@@ -116,6 +119,65 @@ impl Game {
 
     pub fn w0_pred(&self) -> Option<NodeP1Id> {
         self.p1_set.get_index_of(&Vec::new()).map(NodeP1Id)
+    }
+
+    pub fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        match self.resolve(n) {
+            // Successors of special nodes are only other special nodes.
+            NodeKind::L0 => Left(&[NodeId::W1][..]),
+            NodeKind::L1 => Left(&[NodeId::W0][..]),
+            NodeKind::W0 => Left(&[NodeId::L1][..]),
+            NodeKind::W1 => Left(&[NodeId::L0][..]),
+            // The successors of a p0/p1 node are all those recorded in the current game.
+            NodeKind::P0(n) => Right(Left(self.p0_succs[n].iter().map(|&n| self.p1_ids[n]))),
+            NodeKind::P1(n) => Right(Right(self.p1_succs[n].iter().map(|&n| self.p0_ids[n]))),
+        }
+        .map_left(|slice| slice.iter().copied())
+    }
+
+    pub fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        match self.resolve(n) {
+            // The predecessor of a L node is just the corresponding W node.
+            NodeKind::L0 => Left(&[NodeId::W1][..]),
+            NodeKind::L1 => Left(&[NodeId::W0][..]),
+            // The predecessor of the W0 node is the empty P1 node
+            NodeKind::W0 => Left(
+                self.w0_pred()
+                    .map_or(&[][..], |n| slice::from_ref(&self.p1_ids[n])),
+            ),
+            // The predecessor of the W1 node are all those P0 nodes with a false formula.
+            NodeKind::W1 => Right(Right(self.w1_preds.iter())),
+            // The predecessors of a p0/p1 node are all those recorded in the game.
+            NodeKind::P0(n) => Right(Left(self.p0_preds[n].iter().map(|&n| self.p1_ids[n]))),
+            NodeKind::P1(n) => Right(Right(self.p1_preds[n].iter())),
+        }
+        .map_left(|slice| slice.iter().copied())
+        .map_right(|inner| inner.map_right(|iter| iter.map(|&n| self.p0_ids[n])))
+    }
+
+    pub fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
+        let iter = |fix_type| {
+            self.p0_by_var
+                .iter()
+                .enumerate()
+                .filter(move |&(i, _)| self.formulas.eq_fix_types[VarId(i)] == fix_type)
+                .flat_map(|(_, nodes)| nodes)
+                .map(|&n0| self.p0_ids[n0])
+        };
+
+        // These has <=-1 reward and high node id
+        let p0_f1_nodes = iter(FixType::Min).rev();
+        // These have -1/0 reward and low node id
+        let wl_nodes = [NodeId::W1, NodeId::L0, NodeId::W0, NodeId::L1];
+        // These have 0 reward and bigger node id than W/L nodes
+        let p1_nodes = self.p1_ids.iter().copied();
+        // These have >=2 reward and are sorted by node id.
+        let p0_f0_nodes = iter(FixType::Max);
+
+        p0_f1_nodes
+            .chain(wl_nodes)
+            .chain(p1_nodes)
+            .chain(p0_f0_nodes)
     }
 }
 

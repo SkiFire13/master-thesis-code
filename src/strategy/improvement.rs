@@ -1,15 +1,14 @@
 use std::cmp::Reverse;
 use std::collections::VecDeque;
-use std::slice;
+use std::iter;
 
 use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
 use crate::strategy::game::NodeKind;
-use crate::symbolic::eq::{FixType, VarId};
 
 use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
-use super::profile::PlayProfile;
+use super::profile::{GetRelevance, PlayProfile};
 
 // TODO: Use node/vertex consistently
 
@@ -17,8 +16,23 @@ use super::profile::PlayProfile;
 pub type Set<T> = std::collections::BTreeSet<T>;
 pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 
+pub trait ImproveGraph: GetRelevance {
+    fn p0_successors(&self, n: NodeP0Id) -> impl Iterator<Item = NodeP1Id>;
+    fn p1_to_node(&self, n: NodeP1Id) -> NodeId;
+}
+
+impl ImproveGraph for Game {
+    fn p0_successors(&self, n: NodeP0Id) -> impl Iterator<Item = NodeP1Id> {
+        self.p0_succs[n].iter().copied()
+    }
+
+    fn p1_to_node(&self, n: NodeP1Id) -> NodeId {
+        self.p1_ids[n]
+    }
+}
+
 pub fn improve(
-    game: &Game,
+    graph: &impl ImproveGraph,
     strategy: &mut IndexVec<NodeP0Id, NodeP1Id>,
     profiles: &IndexVec<NodeId, PlayProfile>,
 ) -> bool {
@@ -27,12 +41,12 @@ pub fn improve(
     // For each p0 node try improving it
     for (n0, n1) in strategy.iter_mut().enumerate() {
         // For each successor check if its play profile is better
-        for m1 in &game.p0_succs[NodeP0Id(n0)] {
-            let n1id = game.p1_ids[*n1];
-            let m1id = game.p1_ids[*m1];
-            if profiles[n1id].cmp(&profiles[m1id], game).is_lt() {
+        for m1 in graph.p0_successors(NodeP0Id(n0)) {
+            let n1id = graph.p1_to_node(*n1);
+            let m1id = graph.p1_to_node(m1);
+            if profiles[n1id].cmp(&profiles[m1id], graph).is_lt() {
                 // If it's better update the strategy
-                *n1 = *m1;
+                *n1 = m1;
                 improved = true;
             }
         }
@@ -41,53 +55,92 @@ pub fn improve(
     improved
 }
 
-struct Graph<'a> {
-    game: &'a Game,
+pub trait ValuationGraph: GetRelevance {
+    fn node_count(&self) -> usize;
+    fn p1_count(&self) -> usize;
+
+    fn node_as_p0(&self, n: NodeId) -> Option<NodeP0Id>;
+    fn node_as_p1(&self, n: NodeId) -> Option<NodeP1Id>;
+
+    fn p0_to_node(&self, n: NodeP0Id) -> NodeId;
+    fn p1_to_node(&self, n: NodeP1Id) -> NodeId;
+
+    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
+    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
+
+    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId>;
+}
+
+impl ValuationGraph for Game {
+    fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    fn p1_count(&self) -> usize {
+        self.p1_set.len()
+    }
+
+    fn node_as_p0(&self, n: NodeId) -> Option<NodeP0Id> {
+        match self.resolve(n) {
+            NodeKind::P0(n) => Some(n),
+            _ => None,
+        }
+    }
+    fn node_as_p1(&self, n: NodeId) -> Option<NodeP1Id> {
+        match self.resolve(n) {
+            NodeKind::P1(n) => Some(n),
+            _ => None,
+        }
+    }
+
+    fn p0_to_node(&self, n: NodeP0Id) -> NodeId {
+        self.p0_ids[n]
+    }
+
+    fn p1_to_node(&self, n: NodeP1Id) -> NodeId {
+        self.p1_ids[n]
+    }
+
+    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
+        self.successors_of(n)
+    }
+
+    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
+        self.predecessors_of(n)
+    }
+
+    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> {
+        self.nodes_sorted_by_reward()
+    }
+}
+
+struct Graph<'a, VG> {
+    game: &'a VG,
     strategy: &'a IndexVec<NodeP0Id, NodeP1Id>,
     inverse_strategy: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
 }
 
-impl<'a> Graph<'a> {
+impl<'a, VG: ValuationGraph> Graph<'a, VG> {
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
-        match self.game.resolve(n) {
-            // Successors of special nodes are only other special nodes.
-            NodeKind::L0 => Left(&[NodeId::W1][..]),
-            NodeKind::L1 => Left(&[NodeId::W0][..]),
-            NodeKind::W0 => Left(&[NodeId::L1][..]),
-            NodeKind::W1 => Left(&[NodeId::L0][..]),
-            // The successor of a p0 node is the p1 node given by the strategy.
-            NodeKind::P0(n) => Left(slice::from_ref(&self.game.p1_ids[self.strategy[n]])),
-            // The successors of a p1 node are all those recorded in the current game.
-            NodeKind::P1(n) => Right(self.game.p1_succs[n].iter().map(|&n| self.game.p0_ids[n])),
+        match self.game.node_as_p0(n) {
+            Some(n) => Left(iter::once(self.game.p1_to_node(self.strategy[n]))),
+            None => Right(self.game.successors_of(n)),
         }
-        .map_left(|slice| slice.iter().copied())
     }
 
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        match self.game.resolve(n) {
-            // The predecessor of a L node is just the corresponding W node.
-            NodeKind::L0 => Left(&[NodeId::W1][..]),
-            NodeKind::L1 => Left(&[NodeId::W0][..]),
-            // The predecessor of the W0 node is the empty P1 node
-            NodeKind::W0 => Left(
-                self.game
-                    .w0_pred()
-                    .map_or(&[][..], |n| slice::from_ref(&self.game.p1_ids[n])),
+        match self.game.node_as_p1(n) {
+            Some(n) => Left(
+                self.inverse_strategy[n]
+                    .iter()
+                    .map(|&n| self.game.p0_to_node(n)),
             ),
-            // The predecessor of the W1 node are all those P0 nodes with a false formula.
-            NodeKind::W1 => Right(Right(self.game.w1_preds.iter())),
-            // The predecessors of a p0 node are all those recorded in the game.
-            NodeKind::P0(n) => Right(Left(self.game.p0_preds[n].iter())),
-            // The predecessors of a p1 node are those given by the strategy.
-            NodeKind::P1(n) => Right(Right(self.inverse_strategy[n].iter())),
+            None => Right(self.game.successors_of(n)),
         }
-        .map_left(|slice| slice.iter().copied())
-        .map_right(|inner| inner.map_left(|iter| iter.map(|&n| self.game.p1_ids[n])))
-        .map_right(|inner| inner.map_right(|iter| iter.map(|&n| self.game.p0_ids[n])))
     }
 
     fn node_count(&self) -> usize {
-        self.game.nodes.len()
+        self.game.node_count()
     }
 
     fn relevance_of(&self, n: NodeId) -> Relevance {
@@ -95,38 +148,16 @@ impl<'a> Graph<'a> {
     }
 
     fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + 'a {
-        let game = self.game;
-        let iter = |fix_type| {
-            game.p0_by_var
-                .iter()
-                .enumerate()
-                .filter(move |&(i, _)| game.formulas.eq_fix_types[VarId(i)] == fix_type)
-                .flat_map(|(_, nodes)| nodes)
-                .map(|&n0| self.game.p0_ids[n0])
-        };
-
-        // These has <=-1 reward and high node id
-        let p0_f1_nodes = iter(FixType::Min).rev();
-        // These have -1/0 reward and low node id
-        let wl_nodes = [NodeId::W1, NodeId::L0, NodeId::W0, NodeId::L1];
-        // These have 0 reward and bigger node id than W/L nodes
-        let p1_nodes = game.p1_ids.iter().copied();
-        // These have >=2 reward and are sorted by node id.
-        let p0_f0_nodes = iter(FixType::Max);
-
-        p0_f1_nodes
-            .chain(wl_nodes)
-            .chain(p1_nodes)
-            .chain(p0_f0_nodes)
+        self.game.nodes_sorted_by_reward()
     }
 }
 
 pub fn valuation(
-    game: &Game,
+    game: &impl ValuationGraph,
     strategy: &IndexVec<NodeP0Id, NodeP1Id>,
 ) -> IndexVec<NodeId, PlayProfile> {
     // Build graph with p0 moves restricted to the given strategy.
-    let mut inverse_strategy = IndexVec::from(vec![Vec::new(); game.p1_set.len()]);
+    let mut inverse_strategy = IndexVec::from(vec![Vec::new(); game.p1_count()]);
     for (n0, &n1) in strategy.iter().enumerate() {
         inverse_strategy[n1].push(NodeP0Id(n0));
     }
@@ -174,9 +205,9 @@ pub fn valuation(
 }
 
 /// A restricted graph without some nodes or edges.
-struct RestrictedGraph<'a> {
+struct RestrictedGraph<'a, VG> {
     /// The base graph
-    base: &'a Graph<'a>,
+    base: &'a Graph<'a, VG>,
     /// List of nodes that are in the restricted graph (for fast iteration)
     k_nodes: &'a [NodeId],
     /// Set of nodes that are in the restricted graph (for filtering/checking)
@@ -187,7 +218,7 @@ struct RestrictedGraph<'a> {
     removed_successors_count: NodeMap<usize>,
 }
 
-impl<'a> RestrictedGraph<'a> {
+impl<'a, VG: ValuationGraph> RestrictedGraph<'a, VG> {
     fn predecessors_of(&self, v: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         self.base
             .predecessors_of(v)
@@ -221,7 +252,7 @@ impl<'a> RestrictedGraph<'a> {
 }
 
 fn subevaluation(
-    graph: &Graph,
+    graph: &Graph<impl ValuationGraph>,
     w: NodeId,
     k_set: &Set<NodeId>,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
@@ -276,7 +307,7 @@ fn subevaluation(
 
 /// Prevent any path that can go through u from doing so.
 fn prevent_paths(
-    graph: &mut RestrictedGraph,
+    graph: &mut RestrictedGraph<impl ValuationGraph>,
     w: NodeId,
     u: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
@@ -300,7 +331,7 @@ fn prevent_paths(
 
 /// Make any path that can go through u do so.
 fn force_paths(
-    graph: &mut RestrictedGraph,
+    graph: &mut RestrictedGraph<impl ValuationGraph>,
     w: NodeId,
     u: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
@@ -341,7 +372,7 @@ where
 }
 
 fn set_maximal_distances(
-    graph: &mut RestrictedGraph,
+    graph: &mut RestrictedGraph<impl ValuationGraph>,
     w: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
@@ -369,7 +400,7 @@ fn set_maximal_distances(
 }
 
 fn set_minimal_distances(
-    graph: &mut RestrictedGraph,
+    graph: &mut RestrictedGraph<impl ValuationGraph>,
     w: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
