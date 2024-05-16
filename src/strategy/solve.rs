@@ -22,7 +22,7 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
     let mut strategy = game.p0_succs.iter().map(|succs| succs[0]).collect();
 
     while todo!("(b, i) not in W0 or W1") {
-        let profiles = valuation(&game, &strategy);
+        let (profiles, final_strategy) = valuation(&game, &strategy);
 
         if improve(&game, &mut strategy, &profiles) {
             // TODO: update W0/W1 (is it possible?)

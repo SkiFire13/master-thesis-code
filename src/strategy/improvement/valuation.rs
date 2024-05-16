@@ -66,7 +66,7 @@ impl<'a, VG: ValuationGraph> Graph<'a, VG> {
 pub fn valuation(
     game: &impl ValuationGraph,
     strategy: &IndexVec<NodeP0Id, NodeP1Id>,
-) -> IndexVec<NodeId, PlayProfile> {
+) -> (IndexVec<NodeId, PlayProfile>, IndexVec<NodeId, NodeId>) {
     // Build graph with p0 moves restricted to the given strategy.
     let mut inverse_strategy = IndexVec::from(vec![Vec::new(); game.p1_count()]);
     for (n0, &n1) in strategy.iter().enumerate() {
@@ -76,6 +76,7 @@ pub fn valuation(
 
     let mut evaluated = Set::new();
     let mut profiles = IndexVec::from(vec![PlayProfile::default(); graph.node_count()]);
+    let mut final_strategy = IndexVec::from(vec![NodeId::default(); graph.node_count()]);
 
     // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
     // At each iteration we will try to fix all the loops that go through w, if w is not
@@ -105,14 +106,14 @@ pub fn valuation(
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
-        subevaluation(graph, w, &k_set, &mut profiles);
+        subevaluation(graph, w, &k_set, &mut profiles, &mut final_strategy);
 
         // Equivalent to removing edges from K to V \ K,
         // as it will make sure they will never get explored again.
         evaluated.extend(k_set);
     }
 
-    profiles
+    (profiles, final_strategy)
 }
 
 /// A restricted graph without some nodes or edges.
@@ -135,6 +136,13 @@ impl<'a, VG: ValuationGraph> RestrictedGraph<'a, VG> {
             .predecessors_of(v)
             .filter(|&u| self.k_set.contains(&u))
             .filter(move |&u| !self.removed_edges.contains(&(u, v)))
+    }
+
+    fn successors_of(&self, v: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.base
+            .successors_of(v)
+            .filter(|&u| self.k_set.contains(&u))
+            .filter(move |&u| !self.removed_edges.contains(&(v, u)))
     }
 
     fn successors_count_of(&self, v: NodeId) -> usize {
@@ -167,6 +175,7 @@ fn subevaluation(
     w: NodeId,
     k_set: &Set<NodeId>,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexVec<NodeId, NodeId>,
 ) {
     let mut k_nodes = k_set.iter().copied().collect::<Vec<_>>();
 
@@ -211,8 +220,8 @@ fn subevaluation(
 
     // Depending on the player favoured by w maximize or minimize the distances.
     match graph.relevance_of(w).player() {
-        Player::P0 => set_maximal_distances(&mut graph, w, profiles),
-        Player::P1 => set_minimal_distances(&mut graph, w, profiles),
+        Player::P0 => set_maximal_distances(&mut graph, w, profiles, final_strategy),
+        Player::P1 => set_minimal_distances(&mut graph, w, profiles, final_strategy),
     }
 }
 
@@ -286,16 +295,18 @@ fn set_maximal_distances(
     graph: &mut RestrictedGraph<impl ValuationGraph>,
     w: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexVec<NodeId, NodeId>,
 ) {
     let mut remaining_successors = graph
         .k_nodes
         .iter()
         .map(|&v| (v, graph.successors_count_of(v)))
         .collect::<NodeMap<_>>();
-    let mut queue = VecDeque::from([(w, 0)]);
+    let mut queue = VecDeque::from([(w, graph.successors_of(w).next().unwrap(), 0)]);
 
-    while let Some((v, d)) = queue.pop_front() {
+    while let Some((v, succ, d)) = queue.pop_front() {
         profiles[v].count_before = d;
+        final_strategy[v] = succ;
 
         for u in graph.predecessors_of(v).filter(|&u| u != w) {
             // Decrease number of remaining successors to visit
@@ -304,7 +315,7 @@ fn set_maximal_distances(
 
             // If last was visited then add node to the queue with one more edge.
             if *remaining == 0 {
-                queue.push_back((u, d + 1));
+                queue.push_back((u, v, d + 1));
             }
         }
     }
@@ -314,15 +325,17 @@ fn set_minimal_distances(
     graph: &mut RestrictedGraph<impl ValuationGraph>,
     w: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexVec<NodeId, NodeId>,
 ) {
     let mut seen = Set::new();
-    let mut queue = VecDeque::from([(w, 0)]);
+    let mut queue = VecDeque::from([(w, graph.successors_of(w).next().unwrap(), 0)]);
 
     // Backward BFS
-    while let Some((v, d)) = queue.pop_front() {
+    while let Some((v, succ, d)) = queue.pop_front() {
         if seen.insert(v) {
             profiles[v].count_before = d;
-            queue.extend(graph.predecessors_of(v).map(|u| (u, d + 1)))
+            final_strategy[v] = succ;
+            queue.extend(graph.predecessors_of(v).map(|u| (u, v, d + 1)))
         }
     }
 }
