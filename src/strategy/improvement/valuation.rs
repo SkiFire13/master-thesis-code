@@ -88,21 +88,20 @@ pub fn valuation(
         }
 
         // Consider only predecessors that weren't "removed".
-        let predecessors_of = |n| graph.predecessors_of(n).filter(|v| !evaluated.contains(v));
+        let preds_of = |n| graph.predecessors_of(n).filter(|v| !evaluated.contains(v));
 
         // Find all nodes v <= w that can reach w
-        let w_relevance = graph.relevance_of(w);
-        let reach_set = reach(w, |u| {
-            predecessors_of(u).filter(|&v| graph.relevance_of(v) <= w_relevance)
-        });
+        let rel_of = |v| graph.relevance_of(v);
+        let w_rel = rel_of(w);
+        let reach_set = reach(w, |u| preds_of(u).filter(|&v| rel_of(v) <= w_rel));
         // If w cannot reach itself without going through nodes with higher priority
         // it cannot be the most relevant node of a loop.
         if !reach_set.contains(&w) {
             continue;
         }
 
-        // Find all nodes that can reach w.
-        let k_set = reach(w, predecessors_of);
+        // Find all nodes that can reach w, we will make them go through w.
+        let k_set = reach(w, preds_of);
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
@@ -116,7 +115,7 @@ pub fn valuation(
     (profiles, final_strategy)
 }
 
-/// A restricted graph without some nodes or edges.
+/// A graph restricted to only some nodes (k) and with some edges removed.
 struct RestrictedGraph<'a, VG> {
     /// The base graph
     base: &'a Graph<'a, VG>,
@@ -126,7 +125,7 @@ struct RestrictedGraph<'a, VG> {
     k_set: &'a Set<NodeId>,
     /// Edges removed from the graph
     removed_edges: Set<(NodeId, NodeId)>,
-    /// Number of outgoing edges removed from each node
+    /// Number of outgoing edges removed from each node, used to quickly compute number of successors.
     removed_successors_count: NodeMap<usize>,
 }
 
