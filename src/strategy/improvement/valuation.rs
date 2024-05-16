@@ -46,7 +46,7 @@ impl<'a, VG: ValuationGraph> Graph<'a, VG> {
                     .iter()
                     .map(|&n| self.game.p0_to_node(n)),
             ),
-            None => Right(self.game.successors_of(n)),
+            None => Right(self.game.predecessors_of(n)),
         }
     }
 
