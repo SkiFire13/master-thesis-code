@@ -90,10 +90,10 @@ pub fn valuation(
         // Consider only predecessors that weren't "removed".
         let preds_of = |n| graph.predecessors_of(n).filter(|v| !evaluated.contains(v));
 
-        // Find all nodes v <= w that can reach w
+        // Find all nodes v <= w that can reach w (excluded w)
         let rel_of = |v| graph.relevance_of(v);
         let w_rel = rel_of(w);
-        let reach_set = reach(w, |u| preds_of(u).filter(|&v| rel_of(v) <= w_rel));
+        let reach_set = reach(preds_of(w), |u| preds_of(u).filter(|&v| rel_of(v) <= w_rel));
         // If w cannot reach itself without going through nodes with higher priority
         // it cannot be the most relevant node of a loop.
         if !reach_set.contains(&w) {
@@ -101,7 +101,7 @@ pub fn valuation(
         }
 
         // Find all nodes that can reach w, we will make them go through w.
-        let k_set = reach(w, preds_of);
+        let k_set = reach([w], preds_of);
 
         // Subevaluation: force all cycles that contain w to happen,
         // with the best path possible.
@@ -232,7 +232,7 @@ fn prevent_paths(
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
     // Find nodes that can reach w without going through u.
-    let u_set = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
+    let u_set = reach([w], |n| graph.predecessors_of(n).filter(|&v| v != u));
 
     // Update profiles of nodes whose path must go through u.
     for &v in graph.k_nodes.iter().filter(|v| !u_set.contains(v)) {
@@ -256,7 +256,7 @@ fn force_paths(
     profiles: &mut IndexVec<NodeId, PlayProfile>,
 ) {
     // Find nodes that can reach u without going through w.
-    let u_set = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
+    let u_set = reach([u], |n| graph.predecessors_of(n).filter(|&v| v != w));
 
     // Update profiles of nodes whose path can go through u.
     for &v in &u_set {
@@ -272,12 +272,13 @@ fn force_paths(
     }
 }
 
-fn reach<F, I>(start: NodeId, mut explore: F) -> Set<NodeId>
+fn reach<S, F, I>(start: S, mut explore: F) -> Set<NodeId>
 where
+    S: IntoIterator<Item = NodeId>,
     F: FnMut(NodeId) -> I,
     I: IntoIterator<Item = NodeId>,
 {
-    let mut stack = Vec::from_iter(explore(start));
+    let mut stack = Vec::from_iter(start);
     let mut set = Set::new();
 
     // BFS according to explore
