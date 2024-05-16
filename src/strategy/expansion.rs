@@ -4,7 +4,7 @@ use crate::index::IndexVec;
 use crate::strategy::game::{NodeId, NodeP0Id, Player};
 
 use super::game::{Game, NodeKind};
-use super::profile::PlayProfile;
+use super::improvement::PlayProfile;
 
 pub fn expand(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) {
     let mut a = e1(game, profiles);

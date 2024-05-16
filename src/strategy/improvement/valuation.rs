@@ -5,55 +5,9 @@ use std::iter;
 use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
-use crate::strategy::game::NodeKind;
+use crate::strategy::game::{NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
 
-use super::game::{Game, NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
-use super::profile::{GetRelevance, PlayProfile};
-
-// TODO: Use node/vertex consistently
-
-// Bitset or something similar?
-pub type Set<T> = std::collections::BTreeSet<T>;
-pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
-
-pub trait ImproveGraph: GetRelevance {
-    fn p0_successors(&self, n: NodeP0Id) -> impl Iterator<Item = NodeP1Id>;
-    fn p1_to_node(&self, n: NodeP1Id) -> NodeId;
-}
-
-impl ImproveGraph for Game {
-    fn p0_successors(&self, n: NodeP0Id) -> impl Iterator<Item = NodeP1Id> {
-        self.p0_succs[n].iter().copied()
-    }
-
-    fn p1_to_node(&self, n: NodeP1Id) -> NodeId {
-        self.p1_ids[n]
-    }
-}
-
-pub fn improve(
-    graph: &impl ImproveGraph,
-    strategy: &mut IndexVec<NodeP0Id, NodeP1Id>,
-    profiles: &IndexVec<NodeId, PlayProfile>,
-) -> bool {
-    let mut improved = false;
-
-    // For each p0 node try improving it
-    for (n0, n1) in strategy.iter_mut().enumerate() {
-        // For each successor check if its play profile is better
-        for m1 in graph.p0_successors(NodeP0Id(n0)) {
-            let n1id = graph.p1_to_node(*n1);
-            let m1id = graph.p1_to_node(m1);
-            if profiles[n1id].cmp(&profiles[m1id], graph).is_lt() {
-                // If it's better update the strategy
-                *n1 = m1;
-                improved = true;
-            }
-        }
-    }
-
-    improved
-}
+use super::{GetRelevance, NodeMap, PlayProfile, Set};
 
 pub trait ValuationGraph: GetRelevance {
     fn node_count(&self) -> usize;
@@ -69,49 +23,6 @@ pub trait ValuationGraph: GetRelevance {
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
 
     fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId>;
-}
-
-impl ValuationGraph for Game {
-    fn node_count(&self) -> usize {
-        self.nodes.len()
-    }
-
-    fn p1_count(&self) -> usize {
-        self.p1_set.len()
-    }
-
-    fn node_as_p0(&self, n: NodeId) -> Option<NodeP0Id> {
-        match self.resolve(n) {
-            NodeKind::P0(n) => Some(n),
-            _ => None,
-        }
-    }
-    fn node_as_p1(&self, n: NodeId) -> Option<NodeP1Id> {
-        match self.resolve(n) {
-            NodeKind::P1(n) => Some(n),
-            _ => None,
-        }
-    }
-
-    fn p0_to_node(&self, n: NodeP0Id) -> NodeId {
-        self.p0_ids[n]
-    }
-
-    fn p1_to_node(&self, n: NodeP1Id) -> NodeId {
-        self.p1_ids[n]
-    }
-
-    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
-        self.successors_of(n)
-    }
-
-    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
-        self.predecessors_of(n)
-    }
-
-    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> {
-        self.nodes_sorted_by_reward()
-    }
 }
 
 struct Graph<'a, VG> {
