@@ -1,18 +1,16 @@
-use crate::strategy::game::{Game, NodeId, NodeKind, NodeP0Id, NodeP1Id, Relevance};
+use either::Either::{Left, Right};
+
+use crate::strategy::game::{
+    Game, GameStrategy, NodeId, NodeKind, NodeP0Id, NodeP1Id, Player, Relevance,
+};
 
 use super::improve::ImproveGraph;
-use super::valuation::ValuationGraph;
+use super::valuation::{Strategy, ValuationGraph};
 use super::GetRelevance;
 
 impl<'a> GetRelevance for Game {
     fn relevance_of(&self, u: NodeId) -> Relevance {
         (*self).relevance_of(u)
-    }
-}
-
-impl<F: Fn(NodeId) -> Relevance> GetRelevance for F {
-    fn relevance_of(&self, u: NodeId) -> Relevance {
-        self(u)
     }
 }
 
@@ -31,29 +29,11 @@ impl ValuationGraph for Game {
         self.nodes.len()
     }
 
-    fn p1_count(&self) -> usize {
-        self.p1_set.len()
-    }
-
-    fn node_as_p0(&self, n: NodeId) -> Option<NodeP0Id> {
+    fn player(&self, n: NodeId) -> crate::strategy::game::Player {
         match self.resolve(n) {
-            NodeKind::P0(n) => Some(n),
-            _ => None,
+            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => Player::P0,
+            NodeKind::L1 | NodeKind::W1 | NodeKind::P1(_) => Player::P1,
         }
-    }
-    fn node_as_p1(&self, n: NodeId) -> Option<NodeP1Id> {
-        match self.resolve(n) {
-            NodeKind::P1(n) => Some(n),
-            _ => None,
-        }
-    }
-
-    fn p0_to_node(&self, n: NodeP0Id) -> NodeId {
-        self.p0_ids[n]
-    }
-
-    fn p1_to_node(&self, n: NodeP1Id) -> NodeId {
-        self.p1_ids[n]
     }
 
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
@@ -66,5 +46,36 @@ impl ValuationGraph for Game {
 
     fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> {
         self.nodes_sorted_by_reward()
+    }
+}
+
+impl Strategy for GameStrategy {
+    type Graph = Game;
+
+    fn iter(&self, game: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)> {
+        self.direct
+            .iter()
+            .enumerate()
+            .map(|(n0, &n1)| (game.p0_ids[NodeP0Id(n0)], game.p1_ids[n1]))
+            .chain([(NodeId::L0, NodeId::W1), (NodeId::W0, NodeId::L1)])
+    }
+
+    fn get(&self, n: NodeId, game: &Self::Graph) -> NodeId {
+        match game.resolve(n) {
+            NodeKind::L0 => NodeId::W1,
+            NodeKind::W0 => NodeId::L1,
+            NodeKind::P0(n) => game.p1_ids[self.direct[n]],
+            NodeKind::L1 | NodeKind::W1 | NodeKind::P1(_) => unreachable!(),
+        }
+    }
+
+    fn get_inverse(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
+        // TODO: The inverse of W1 could be a actual p0 node.
+        match game.resolve(n) {
+            NodeKind::L1 => Left([NodeId::W0].into_iter()),
+            NodeKind::W1 => Left([NodeId::L0].into_iter()),
+            NodeKind::P1(n) => Right(self.inverse[n].iter().map(|&n| game.p0_ids[n])),
+            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
+        }
     }
 }

@@ -5,19 +5,14 @@ use std::iter;
 use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
-use crate::strategy::game::{NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
+use crate::strategy::game::{NodeId, Player, Relevance};
 
 use super::{GetRelevance, NodeMap, PlayProfile, Set};
 
 pub trait ValuationGraph: GetRelevance {
     fn node_count(&self) -> usize;
-    fn p1_count(&self) -> usize;
 
-    fn node_as_p0(&self, n: NodeId) -> Option<NodeP0Id>;
-    fn node_as_p1(&self, n: NodeId) -> Option<NodeP1Id>;
-
-    fn p0_to_node(&self, n: NodeP0Id) -> NodeId;
-    fn p1_to_node(&self, n: NodeP1Id) -> NodeId;
+    fn player(&self, n: NodeId) -> Player;
 
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
@@ -25,28 +20,30 @@ pub trait ValuationGraph: GetRelevance {
     fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId>;
 }
 
-struct Graph<'a, VG> {
-    game: &'a VG,
-    strategy: &'a IndexVec<NodeP0Id, NodeP1Id>,
-    inverse_strategy: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+pub trait Strategy {
+    type Graph: ValuationGraph;
+    fn iter(&self, graph: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)>;
+    fn get(&self, n: NodeId, graph: &Self::Graph) -> NodeId;
+    fn get_inverse(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId>;
 }
 
-impl<'a, VG: ValuationGraph> Graph<'a, VG> {
+struct Graph<'a, S: Strategy> {
+    game: &'a S::Graph,
+    strategy: &'a S,
+}
+
+impl<'a, S: Strategy> Graph<'a, S> {
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
-        match self.game.node_as_p0(n) {
-            Some(n) => Left(iter::once(self.game.p1_to_node(self.strategy[n]))),
-            None => Right(self.game.successors_of(n)),
+        match self.game.player(n) {
+            Player::P0 => Left(iter::once(self.strategy.get(n, self.game))),
+            Player::P1 => Right(self.game.successors_of(n)),
         }
     }
 
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        match self.game.node_as_p1(n) {
-            Some(n) => Left(
-                self.inverse_strategy[n]
-                    .iter()
-                    .map(|&n| self.game.p0_to_node(n)),
-            ),
-            None => Right(self.game.predecessors_of(n)),
+        match self.game.player(n) {
+            Player::P0 => Left(self.game.predecessors_of(n)),
+            Player::P1 => Right(self.strategy.get_inverse(n, self.game)),
         }
     }
 
@@ -63,16 +60,12 @@ impl<'a, VG: ValuationGraph> Graph<'a, VG> {
     }
 }
 
-pub fn valuation(
-    game: &impl ValuationGraph,
-    strategy: &IndexVec<NodeP0Id, NodeP1Id>,
+pub fn valuation<S: Strategy>(
+    game: &S::Graph,
+    strategy: &S,
 ) -> (IndexVec<NodeId, PlayProfile>, IndexVec<NodeId, NodeId>) {
     // Build graph with p0 moves restricted to the given strategy.
-    let mut inverse_strategy = IndexVec::from(vec![Vec::new(); game.p1_count()]);
-    for (n0, &n1) in strategy.iter().enumerate() {
-        inverse_strategy[n1].push(NodeP0Id(n0));
-    }
-    let graph = &Graph { game, strategy, inverse_strategy };
+    let graph = &Graph { game, strategy };
 
     let mut evaluated = Set::new();
     let mut profiles = IndexVec::from(vec![PlayProfile::default(); graph.node_count()]);
@@ -116,9 +109,9 @@ pub fn valuation(
 }
 
 /// A graph restricted to only some nodes (k) and with some edges removed.
-struct RestrictedGraph<'a, VG> {
+struct RestrictedGraph<'a, S: Strategy> {
     /// The base graph
-    base: &'a Graph<'a, VG>,
+    base: &'a Graph<'a, S>,
     /// List of nodes that are in the restricted graph (for fast iteration)
     k_nodes: &'a [NodeId],
     /// Set of nodes that are in the restricted graph (for filtering/checking)
@@ -129,7 +122,7 @@ struct RestrictedGraph<'a, VG> {
     removed_successors_count: NodeMap<usize>,
 }
 
-impl<'a, VG: ValuationGraph> RestrictedGraph<'a, VG> {
+impl<'a, S: Strategy> RestrictedGraph<'a, S> {
     fn predecessors_of(&self, v: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         self.base
             .predecessors_of(v)
@@ -170,7 +163,7 @@ impl<'a, VG: ValuationGraph> RestrictedGraph<'a, VG> {
 }
 
 fn subevaluation(
-    graph: &Graph<impl ValuationGraph>,
+    graph: &Graph<impl Strategy>,
     w: NodeId,
     k_set: &Set<NodeId>,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
@@ -226,7 +219,7 @@ fn subevaluation(
 
 /// Prevent any path that can go through u from doing so.
 fn prevent_paths(
-    graph: &mut RestrictedGraph<impl ValuationGraph>,
+    graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
     u: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
@@ -250,7 +243,7 @@ fn prevent_paths(
 
 /// Make any path that can go through u do so.
 fn force_paths(
-    graph: &mut RestrictedGraph<impl ValuationGraph>,
+    graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
     u: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
@@ -292,7 +285,7 @@ where
 }
 
 fn set_maximal_distances(
-    graph: &mut RestrictedGraph<impl ValuationGraph>,
+    graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
     final_strategy: &mut IndexVec<NodeId, NodeId>,
@@ -322,7 +315,7 @@ fn set_maximal_distances(
 }
 
 fn set_minimal_distances(
-    graph: &mut RestrictedGraph<impl ValuationGraph>,
+    graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
     profiles: &mut IndexVec<NodeId, PlayProfile>,
     final_strategy: &mut IndexVec<NodeId, NodeId>,

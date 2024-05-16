@@ -23,13 +23,19 @@ impl<I, T> DerefMut for IndexVec<I, T> {
 
 impl<I: AsIndex, T> IndexVec<I, T> {
     pub fn new() -> Self {
-        Vec::new().into()
+        Self::default()
     }
 
     pub fn push(&mut self, value: T) -> I {
         let index = I::from_usize(self.len());
         self.vec.push(value);
         index
+    }
+}
+
+impl<I, T> Default for IndexVec<I, T> {
+    fn default() -> Self {
+        Vec::new().into()
     }
 }
 
@@ -109,7 +115,7 @@ pub trait AsIndex {
 macro_rules! new_index {
     ($(#[$($meta:tt)*])* $vis:vis index $ty:ident) => {
         $(#[$($meta)*])*
-        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
         $vis struct $ty(pub usize);
 
         impl crate::index::AsIndex for $ty {

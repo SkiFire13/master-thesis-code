@@ -181,13 +181,19 @@ impl Game {
     }
 }
 
+pub struct GameStrategy {
+    // TODO: Not all p0 nodes can have an actual successor.
+    pub direct: IndexVec<NodeP0Id, NodeP1Id>,
+    pub inverse: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+}
+
 pub enum Player {
     P0,
     P1,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Relevance(usize, NodeId);
+pub struct Relevance(pub usize, pub NodeId);
 
 impl Relevance {
     pub fn player(self) -> Player {
