@@ -54,9 +54,8 @@ impl Strategy for GameStrategy {
 
     fn iter(&self, game: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)> {
         self.direct
-            .iter()
             .enumerate()
-            .map(|(n0, &n1)| (game.p0_ids[NodeP0Id(n0)], game.p1_ids[n1]))
+            .map(|(n0, &n1)| (game.p0_ids[n0], game.p1_ids[n1]))
             .chain([(NodeId::L0, NodeId::W1), (NodeId::W0, NodeId::L1)])
     }
 

@@ -158,9 +158,8 @@ impl Game {
     pub fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
         let iter = |fix_type| {
             self.p0_by_var
-                .iter()
                 .enumerate()
-                .filter(move |&(i, _)| self.formulas.eq_fix_types[VarId(i)] == fix_type)
+                .filter(move |&(i, _)| self.formulas.eq_fix_types[i] == fix_type)
                 .flat_map(|(_, nodes)| nodes)
                 .map(|&n0| self.p0_ids[n0])
         };

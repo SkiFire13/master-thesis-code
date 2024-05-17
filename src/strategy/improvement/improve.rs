@@ -16,9 +16,9 @@ pub fn improve(
     let mut improved = false;
 
     // For each p0 node try improving it
-    for (n0, n1) in strategy.iter_mut().enumerate() {
+    for (n0, n1) in strategy.enumerate_mut() {
         // For each successor check if its play profile is better
-        for m1 in graph.p0_successors(NodeP0Id(n0)) {
+        for m1 in graph.p0_successors(n0) {
             let n1id = graph.p1_to_node(*n1);
             let m1id = graph.p1_to_node(m1);
             if profiles[n1id].cmp(&profiles[m1id], graph).is_lt() {
