@@ -54,9 +54,8 @@ impl Strategy for GameStrategy {
 
     fn iter(&self, game: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)> {
         self.direct
-            .iter()
             .enumerate()
-            .map(|(n0, &n1)| (game.p0_ids[NodeP0Id(n0)], game.p1_ids[n1]))
+            .map(|(n0, &n1)| (game.p0_ids[n0], game.p1_ids[n1]))
             .chain([(NodeId::L0, NodeId::W1), (NodeId::W0, NodeId::L1)])
     }
 
@@ -72,10 +71,10 @@ impl Strategy for GameStrategy {
     fn get_inverse(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
         // TODO: The inverse of W1 could be a actual p0 node.
         match game.resolve(n) {
-            NodeKind::L1 => Left([NodeId::W0].into_iter()),
-            NodeKind::W1 => Left([NodeId::L0].into_iter()),
+            NodeKind::L1 => Left([NodeId::W0].iter().copied()),
+            NodeKind::W1 => Left([NodeId::L0].iter().copied()),
             NodeKind::P1(n) => Right(self.inverse[n].iter().map(|&n| game.p0_ids[n])),
-            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
+            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => Left([].iter().copied()),
         }
     }
 }

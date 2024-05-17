@@ -3,7 +3,7 @@ use std::cmp::Reverse;
 use indexmap::IndexSet;
 
 use crate::index::IndexVec;
-use crate::strategy::game::{NodeId, NodeP0Id, NodeP1Id, Player, Relevance};
+use crate::strategy::game::{NodeId, Player, Relevance};
 
 use super::valuation::{valuation, Strategy, ValuationGraph};
 use super::{GetRelevance, NodeMap};
@@ -11,9 +11,7 @@ use super::{GetRelevance, NodeMap};
 #[derive(Default)]
 struct TestGame {
     relevance: IndexVec<NodeId, usize>,
-    p0_nodes: IndexVec<NodeP0Id, NodeId>,
-    p1_nodes: IndexVec<NodeP1Id, NodeId>,
-    nodes_p: IndexVec<NodeId, PlayerNode>,
+    players: IndexVec<NodeId, Player>,
     successors: IndexVec<NodeId, Vec<NodeId>>,
     predecessors: IndexVec<NodeId, Vec<NodeId>>,
     nodes_by_reward: Vec<NodeId>,
@@ -24,11 +22,6 @@ struct TestStrategy {
     inverse: NodeMap<Vec<NodeId>>,
 }
 
-enum PlayerNode {
-    P0(NodeP0Id),
-    P1(NodeP1Id),
-}
-
 impl GetRelevance for TestGame {
     fn relevance_of(&self, u: NodeId) -> Relevance {
         Relevance(self.relevance[u], u)
@@ -37,14 +30,11 @@ impl GetRelevance for TestGame {
 
 impl ValuationGraph for TestGame {
     fn node_count(&self) -> usize {
-        self.nodes_p.len()
+        self.players.len()
     }
 
     fn player(&self, n: NodeId) -> Player {
-        match self.nodes_p[n] {
-            PlayerNode::P0(_) => Player::P0,
-            PlayerNode::P1(_) => Player::P1,
-        }
+        self.players[n]
     }
 
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
@@ -86,10 +76,10 @@ fn parse_test(test: &str) -> TestGame {
         let (relevance, rest) = rest.split_once(' ').unwrap();
         let (player, successors) = rest.split_once(' ').unwrap();
 
-        let n = game.relevance.push(relevance.parse().unwrap());
+        game.relevance.push(relevance.parse().unwrap());
         match player {
-            "0" => _ = game.nodes_p.push(PlayerNode::P0(game.p0_nodes.push(n))),
-            "1" => _ = game.nodes_p.push(PlayerNode::P1(game.p1_nodes.push(n))),
+            "0" => _ = game.players.push(Player::P0),
+            "1" => _ = game.players.push(Player::P1),
             _ => panic!(),
         }
         let successors = successors.strip_suffix(';').unwrap().split(',');
@@ -99,9 +89,9 @@ fn parse_test(test: &str) -> TestGame {
 
     game.predecessors
         .resize_with(game.successors.len(), Vec::new);
-    for (n, succ) in game.successors.iter().enumerate() {
+    for (n, succ) in game.successors.enumerate() {
         for &m in succ {
-            game.predecessors[m].push(NodeId(n));
+            game.predecessors[m].push(n);
         }
     }
 
@@ -114,9 +104,10 @@ fn parse_test(test: &str) -> TestGame {
 
 fn run_valuation_test(game: &TestGame) {
     let direct_strategy = game
-        .p0_nodes
-        .iter()
-        .map(|&n| (n, *game.successors[n].last().unwrap()))
+        .players
+        .enumerate()
+        .filter(|(_, &p)| p == Player::P0)
+        .map(|(n, _)| (n, *game.successors[n].last().unwrap()))
         .collect::<NodeMap<_>>();
     let mut inverse_strategy = NodeMap::new();
     for (&n, &m) in direct_strategy.iter() {
@@ -126,15 +117,15 @@ fn run_valuation_test(game: &TestGame) {
 
     let (profiles, final_strategy) = valuation(game, &strategy);
 
-    for n in (0..game.nodes_p.len()).map(NodeId) {
+    for n in (0..game.players.len()).map(NodeId) {
         let profile = &profiles[n];
         let next = final_strategy[n];
 
         // Check that the final strategy is consistent with the given p0 strategy
         // and the successors of p1.
-        match game.nodes_p[n] {
-            PlayerNode::P0(_) => assert_eq!(strategy.direct[&n], next),
-            PlayerNode::P1(_) => assert!(game.successors[n].contains(&next)),
+        match game.players[n] {
+            Player::P0 => assert_eq!(strategy.direct[&n], next),
+            Player::P1 => assert!(game.successors[n].contains(&next)),
         }
 
         // Play the game with the final strategy until a node is seen twice.
@@ -181,5 +172,21 @@ macro_rules! declare_test {
 
 declare_test! {
     vb001,
+    vb013,
     vb059,
+}
+
+#[test]
+fn all() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test/data/");
+    for e in std::fs::read_dir(dir).unwrap() {
+        let e = e.unwrap();
+        let name = e.file_name().into_string().unwrap();
+        let input = std::fs::read_to_string(e.path()).unwrap();
+        let game = parse_test(&input);
+        if let Err(e) = std::panic::catch_unwind(|| run_valuation_test(&game)) {
+            eprintln!("Test {name} failed");
+            std::panic::resume_unwind(e);
+        }
+    }
 }

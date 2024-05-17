@@ -63,6 +63,7 @@ pub struct Game {
 impl Game {
     pub fn new(b: BasisId, i: VarId, formulas: EqsFormulas) -> Self {
         let mut p0_by_var = IndexVec::from(vec![Vec::new(); formulas.var_count()]);
+        // TODO: Use method to insert first node, like the others
         p0_by_var[i].push(NodeP0Id(0));
 
         Self {
@@ -158,9 +159,8 @@ impl Game {
     pub fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
         let iter = |fix_type| {
             self.p0_by_var
-                .iter()
                 .enumerate()
-                .filter(move |&(i, _)| self.formulas.eq_fix_types[VarId(i)] == fix_type)
+                .filter(move |&(i, _)| self.formulas.eq_fix_types[i] == fix_type)
                 .flat_map(|(_, nodes)| nodes)
                 .map(|&n0| self.p0_ids[n0])
         };
@@ -187,6 +187,7 @@ pub struct GameStrategy {
     pub inverse: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
     P0,
     P1,

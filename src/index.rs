@@ -31,6 +31,20 @@ impl<I: AsIndex, T> IndexVec<I, T> {
         self.vec.push(value);
         index
     }
+
+    pub fn enumerate(
+        &self,
+    ) -> impl Iterator<Item = (I, &T)> + DoubleEndedIterator + ExactSizeIterator {
+        self.iter().enumerate().map(|(n, t)| (I::from_usize(n), t))
+    }
+
+    pub fn enumerate_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (I, &mut T)> + DoubleEndedIterator + ExactSizeIterator {
+        self.iter_mut()
+            .enumerate()
+            .map(|(n, t)| (I::from_usize(n), t))
+    }
 }
 
 impl<I, T> Default for IndexVec<I, T> {

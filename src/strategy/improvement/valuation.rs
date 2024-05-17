@@ -41,10 +41,12 @@ impl<'a, S: Strategy> Graph<'a, S> {
     }
 
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        match self.game.player(n) {
-            Player::P0 => Left(self.game.predecessors_of(n)),
-            Player::P1 => Right(self.strategy.get_inverse(n, self.game)),
-        }
+        let p0_preds = self.strategy.get_inverse(n, self.game);
+        let p1_preds = self
+            .game
+            .predecessors_of(n)
+            .filter(|&n| self.game.player(n) == Player::P1);
+        p0_preds.chain(p1_preds)
     }
 
     fn node_count(&self) -> usize {
