@@ -187,6 +187,7 @@ pub struct GameStrategy {
     pub inverse: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Player {
     P0,
     P1,
