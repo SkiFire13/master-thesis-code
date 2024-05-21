@@ -6,8 +6,9 @@ use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
 use crate::strategy::game::{NodeId, Player, Relevance};
+use crate::strategy::Set;
 
-use super::{GetRelevance, NodeMap, PlayProfile, Set};
+use super::{GetRelevance, NodeMap, PlayProfile};
 
 pub trait ValuationGraph: GetRelevance {
     fn node_count(&self) -> usize;

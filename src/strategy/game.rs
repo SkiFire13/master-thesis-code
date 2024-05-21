@@ -8,6 +8,8 @@ use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::{BasisId, Formula};
 
+use super::Set;
+
 new_index!(pub index NodeId);
 
 impl NodeId {
@@ -183,7 +185,7 @@ impl Game {
 pub struct GameStrategy {
     // TODO: Not all p0 nodes can have an actual successor.
     pub direct: IndexVec<NodeP0Id, NodeP1Id>,
-    pub inverse: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+    pub inverse: IndexVec<NodeP1Id, Set<NodeP0Id>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

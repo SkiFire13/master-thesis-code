@@ -4,7 +4,7 @@ use crate::strategy::game::{
     Game, GameStrategy, NodeId, NodeKind, NodeP0Id, NodeP1Id, Player, Relevance,
 };
 
-use super::improve::ImproveGraph;
+use super::improve::{ImproveGraph, StrategyMut};
 use super::valuation::{Strategy, ValuationGraph};
 use super::GetRelevance;
 
@@ -75,6 +75,37 @@ impl Strategy for GameStrategy {
             NodeKind::W1 => Left([NodeId::L0].iter().copied()),
             NodeKind::P1(n) => Right(self.inverse[n].iter().map(|&n| game.p0_ids[n])),
             NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => Left([].iter().copied()),
+        }
+    }
+}
+
+impl StrategyMut for GameStrategy {
+    fn update_each(&mut self, graph: &Self::Graph, mut f: impl FnMut(NodeId, NodeId) -> NodeId) {
+        for (p0, p1) in self.direct.enumerate_mut() {
+            let n0 = graph.p0_ids[p0];
+            let n1 = graph.p1_ids[*p1];
+
+            let n2 = f(n0, n1);
+
+            // Successor didn't change, nothing to update.
+            if n2 == n1 {
+                continue;
+            }
+
+            match graph.resolve(n2) {
+                // P0 nodes cannot reach other P0 nodes.
+                NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
+                // Only W0 can reach L1 but we skipped it.
+                NodeKind::L1 => unreachable!(),
+                NodeKind::W1 => todo!(),
+                NodeKind::P1(np1) => {
+                    // Update the inverse sets.
+                    self.inverse[*p1].remove(&p0);
+                    self.inverse[np1].insert(p0);
+                    // Update the direct successor.
+                    *p1 = np1;
+                }
+            }
         }
     }
 }
