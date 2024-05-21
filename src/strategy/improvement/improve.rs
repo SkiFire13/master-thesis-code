@@ -1,13 +1,8 @@
 use crate::index::IndexVec;
-use crate::strategy::game::{NodeId, NodeP0Id, NodeP1Id};
+use crate::strategy::game::NodeId;
 
-use super::profile::{GetRelevance, PlayProfile};
+use super::profile::PlayProfile;
 use super::valuation::{Strategy, ValuationGraph};
-
-pub trait ImproveGraph: GetRelevance {
-    fn p0_successors(&self, n: NodeP0Id) -> impl Iterator<Item = NodeP1Id>;
-    fn p1_to_node(&self, n: NodeP1Id) -> NodeId;
-}
 
 pub trait StrategyMut: Strategy {
     fn update_each(&mut self, graph: &Self::Graph, f: impl FnMut(NodeId, NodeId) -> NodeId);

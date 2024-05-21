@@ -1,5 +1,7 @@
+use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 pub struct IndexVec<I, T> {
@@ -130,19 +132,52 @@ pub trait AsIndex {
     fn from_usize(index: usize) -> Self;
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NonMaxUsize(NonZeroUsize);
+
+impl NonMaxUsize {
+    pub const fn new(n: usize) -> Self {
+        match NonZeroUsize::new(n + 1) {
+            Some(n) => Self(n),
+            None => panic!(),
+        }
+    }
+
+    pub const fn to_usize(self) -> usize {
+        self.0.get() - 1
+    }
+}
+
+impl Default for NonMaxUsize {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl fmt::Debug for NonMaxUsize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("NonMaxUsize").field(&self.0).finish()
+    }
+}
+
 macro_rules! new_index {
     ($(#[$($meta:tt)*])* $vis:vis index $ty:ident) => {
         $(#[$($meta)*])*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        $vis struct $ty(pub usize);
+        $vis struct $ty { index: $crate::index::NonMaxUsize }
 
-        impl crate::index::AsIndex for $ty {
+        #[allow(non_snake_case)]
+        $vis const fn $ty(index: usize) -> $ty {
+            $ty { index: $crate::index::NonMaxUsize::new(index) }
+        }
+
+        impl $crate::index::AsIndex for $ty {
             fn to_usize(&self) -> usize {
-                self.0
+                self.index.to_usize()
             }
 
             fn from_usize(index: usize) -> Self {
-                Self(index)
+                $ty(index)
             }
         }
     };

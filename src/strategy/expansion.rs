@@ -59,6 +59,7 @@ fn e2(game: &mut Game, w: NodeKind, mut add: impl FnMut(NodeKind)) {
         NodeKind::P1(n) if game.p1_set[n].is_empty() => add(NodeKind::W0),
         NodeKind::P0(n) => {
             // TODO: apply decisions and stuff
+            _ = n;
             todo!();
         }
         NodeKind::P1(n) => {

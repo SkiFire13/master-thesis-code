@@ -4,9 +4,10 @@ use indexmap::IndexSet;
 
 use crate::index::IndexVec;
 use crate::strategy::game::{NodeId, Player, Relevance};
+use crate::strategy::NodeMap;
 
 use super::valuation::{valuation, Strategy, ValuationGraph};
-use super::{GetRelevance, NodeMap};
+use super::GetRelevance;
 
 #[derive(Default)]
 struct TestGame {
@@ -57,7 +58,7 @@ impl Strategy for TestStrategy {
         self.direct.iter().map(|(&n, &m)| (n, m))
     }
 
-    fn get(&self, n: NodeId, _: &Self::Graph) -> NodeId {
+    fn get_direct(&self, n: NodeId, _: &Self::Graph) -> NodeId {
         self.direct[&n]
     }
 

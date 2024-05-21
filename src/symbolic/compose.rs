@@ -1,4 +1,4 @@
-use crate::index::IndexVec;
+use crate::index::{AsIndex, IndexVec};
 
 use super::eq::{Expr, FixEq, FixType, FunId, VarId};
 use super::formula::{simplify_and, simplify_or, BasisId, Formula};
@@ -38,7 +38,7 @@ impl EqsFormulas {
     }
 
     pub fn get(&self, b: BasisId, i: VarId) -> &Formula {
-        &self.moves[i.0 * self.basis_count + b.0]
+        &self.moves[i.to_usize() * self.basis_count + b.to_usize()]
     }
 
     pub fn basis_count(&self) -> usize {
@@ -61,7 +61,7 @@ fn compose_moves(expr: &Expr, b: BasisId, eqs: &[FixEq], moves: &FunsFormulas) -
 
 fn subst(formula: &Formula, args: &[Expr], eqs: &[FixEq], moves: &FunsFormulas) -> Formula {
     match formula {
-        Formula::Atom(b, i) => compose_moves(&args[i.0], *b, eqs, moves),
+        Formula::Atom(b, i) => compose_moves(&args[i.to_usize()], *b, eqs, moves),
         Formula::And(fs) => simplify_and(fs.iter().map(|f| subst(f, args, eqs, moves))),
         Formula::Or(fs) => simplify_or(fs.iter().map(|f| subst(f, args, eqs, moves))),
     }

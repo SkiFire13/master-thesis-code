@@ -6,9 +6,9 @@ use either::Either::{Left, Right};
 
 use crate::index::IndexVec;
 use crate::strategy::game::{NodeId, Player, Relevance};
-use crate::strategy::Set;
+use crate::strategy::{NodeMap, Set};
 
-use super::{GetRelevance, NodeMap, PlayProfile};
+use super::{GetRelevance, PlayProfile};
 
 pub trait ValuationGraph: GetRelevance {
     fn node_count(&self) -> usize;
@@ -24,7 +24,7 @@ pub trait ValuationGraph: GetRelevance {
 pub trait Strategy {
     type Graph: ValuationGraph;
     fn iter(&self, graph: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)>;
-    fn get(&self, n: NodeId, graph: &Self::Graph) -> NodeId;
+    fn get_direct(&self, n: NodeId, graph: &Self::Graph) -> NodeId;
     fn get_inverse(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId>;
 }
 
@@ -36,7 +36,7 @@ struct Graph<'a, S: Strategy> {
 impl<'a, S: Strategy> Graph<'a, S> {
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
         match self.game.player(n) {
-            Player::P0 => Left(iter::once(self.strategy.get(n, self.game))),
+            Player::P0 => Left(iter::once(self.strategy.get_direct(n, self.game))),
             Player::P1 => Right(self.game.successors_of(n)),
         }
     }

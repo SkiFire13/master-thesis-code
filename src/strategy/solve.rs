@@ -1,6 +1,6 @@
 use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
-use crate::strategy::game::{Game, NodeP0Id, NodeP1Id};
+use crate::strategy::game::{Game, GameStrategy, NodeP0Id, NodeP1Id};
 use crate::strategy::improvement::{improve, valuation, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
@@ -19,22 +19,26 @@ pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
     // TODO: init/update W0/W1
 
     // Select initial strategy by picking a random successor for each p0 node.
-    let mut strategy = game
-        .p0_succs
-        .iter()
-        .map(|succs| succs[0])
-        .collect::<IndexVec<NodeP0Id, NodeP1Id>>();
+    let mut strategy = {
+        let direct = game
+            .p0_succs
+            .iter()
+            .map(|succs| succs.first().copied())
+            .collect::<IndexVec<NodeP0Id, Option<NodeP1Id>>>();
+        GameStrategy::from_direct(&game, direct)
+    };
 
-    // while todo!("(b, i) not in W0 or W1") {
-    //     let (profiles, final_strategy) = valuation(&game, &strategy);
+    // TODO: (b, i) not in W0 or W1
+    while false {
+        let (profiles, _final_strategy) = valuation(&game, &strategy);
 
-    //     if improve(&game, &mut strategy, &profiles) {
-    //         // TODO: update W0/W1 (is it possible?)
-    //     } else {
-    //         // expand graph
-    //         // expand strategy
-    //     }
-    // }
+        if improve(&game, &mut strategy, &profiles) {
+            // TODO: update W0/W1 (is it possible?)
+        } else {
+            // expand graph
+            // expand strategy
+        }
+    }
 
     todo!("is (b, i) in W0?")
 }

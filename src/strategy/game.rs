@@ -183,9 +183,26 @@ impl Game {
 }
 
 pub struct GameStrategy {
-    // TODO: Not all p0 nodes can have an actual successor.
-    pub direct: IndexVec<NodeP0Id, NodeP1Id>,
+    // The successor is None if it's actually W1
+    pub direct: IndexVec<NodeP0Id, Option<NodeP1Id>>,
     pub inverse: IndexVec<NodeP1Id, Set<NodeP0Id>>,
+    pub inverse_w1: Set<NodeP0Id>,
+}
+
+impl GameStrategy {
+    pub fn from_direct(game: &Game, direct: IndexVec<NodeP0Id, Option<NodeP1Id>>) -> Self {
+        let mut inverse = IndexVec::from(vec![Set::new(); game.p1_ids.len()]);
+        let mut inverse_w1 = Set::new();
+
+        for (n0, &n1) in direct.enumerate() {
+            match n1 {
+                Some(n1) => _ = inverse[n1].insert(n0),
+                None => _ = inverse_w1.insert(n0),
+            }
+        }
+
+        Self { direct, inverse, inverse_w1 }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
