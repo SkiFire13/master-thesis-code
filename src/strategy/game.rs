@@ -6,7 +6,7 @@ use either::Either::{Left, Right};
 use crate::index::{new_index, AsIndex, IndexSet, IndexVec};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
-use crate::symbolic::formula::{BasisId, Formula};
+use crate::symbolic::formula::{BasisElemId, Formula};
 
 use super::Set;
 
@@ -38,8 +38,8 @@ pub struct Game {
     pub formulas: EqsFormulas,
 
     // Set of nodes, to give them an identity (the index in their set)
-    pub p0_set: IndexSet<NodeP0Id, (BasisId, VarId)>,
-    pub p1_set: IndexSet<NodeP1Id, Vec<(BasisId, VarId)>>,
+    pub p0_set: IndexSet<NodeP0Id, (BasisElemId, VarId)>,
+    pub p1_set: IndexSet<NodeP1Id, Vec<(BasisElemId, VarId)>>,
 
     // Map between node ids (assumed to also be sorted according to NodeId)
     pub nodes: IndexVec<NodeId, NodeKind>,
@@ -63,7 +63,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(b: BasisId, i: VarId, formulas: EqsFormulas) -> Self {
+    pub fn new(b: BasisElemId, i: VarId, formulas: EqsFormulas) -> Self {
         let mut p0_by_var = IndexVec::from(vec![Vec::new(); formulas.var_count()]);
         p0_by_var[i].push(NodeP0Id(0));
 

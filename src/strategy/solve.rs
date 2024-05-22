@@ -4,9 +4,9 @@ use crate::strategy::game::{Game, GameStrategy, NodeP0Id, NodeP1Id};
 use crate::strategy::improvement::{improve, valuation, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
-use crate::symbolic::formula::BasisId;
+use crate::symbolic::formula::BasisElemId;
 
-pub fn solve(b: BasisId, i: VarId, moves: EqsFormulas) -> bool {
+pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
     // Special case to ensure there's always a move possible.
     if moves.get(b, i).is_false() {
         return false;

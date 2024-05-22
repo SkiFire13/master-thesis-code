@@ -2,10 +2,10 @@ use crate::index::new_index;
 
 use super::eq::VarId;
 
-new_index!(pub index BasisId);
+new_index!(pub index BasisElemId);
 
 pub enum Formula {
-    Atom(BasisId, VarId),
+    Atom(BasisElemId, VarId),
     And(Vec<Formula>),
     Or(Vec<Formula>),
 }

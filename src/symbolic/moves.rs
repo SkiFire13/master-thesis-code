@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use super::eq::VarId;
-use super::formula::{BasisId, Formula};
+use super::formula::{BasisElemId, Formula};
 
 impl Formula {
-    pub fn next_move(&self) -> Option<Vec<(BasisId, VarId)>> {
+    pub fn next_move(&self) -> Option<Vec<(BasisElemId, VarId)>> {
         match self {
             _ if self.is_false() => None,
             _ if self.is_true() => Some(Vec::new()),
@@ -12,8 +12,8 @@ impl Formula {
         }
     }
 
-    fn build_next_move(&self) -> Vec<(BasisId, VarId)> {
-        fn build_next_move_inner(f: &Formula, add: &mut impl FnMut(BasisId, VarId)) {
+    fn build_next_move(&self) -> Vec<(BasisElemId, VarId)> {
+        fn build_next_move_inner(f: &Formula, add: &mut impl FnMut(BasisElemId, VarId)) {
             match f {
                 Formula::Atom(b, i) => add(*b, *i),
                 Formula::And(children) => {
