@@ -26,7 +26,6 @@ pub fn expand(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) {
 }
 
 fn e1(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) -> Vec<NodeKind> {
-    // TODO: Is this correct?
     let init_node = NodeId::INIT;
     let relevant_node = profiles[init_node].most_relevant;
 

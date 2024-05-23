@@ -100,16 +100,19 @@ impl Game {
 
     pub fn relevance_of(&self, n: NodeId) -> Relevance {
         let rel = match self.resolve(n) {
-            NodeKind::L0 => 1,
-            NodeKind::L1 => 0,
-            NodeKind::W0 => 0,
-            NodeKind::W1 => 1,
+            // High relevance (higher than P0 nodes) in favour of P1
+            NodeKind::L0 | NodeKind::W1 => 2 * self.formulas.var_count() + 1,
+            // High relevance (higher than P0 nodes) in favour of P0
+            NodeKind::W0 | NodeKind::L1 => 0,
+            // Relevance proportional to the variable index, going from 1 to 2 * var_count
             NodeKind::P0(n) => {
                 let (_, i) = self.p0_set[n];
                 let fix_type = self.formulas.eq_fix_types[i];
                 // TODO: Maybe optimize this to make it more compact?
-                2 * i.to_usize() + if fix_type == FixType::Min { 2 } else { 1 }
+                // TODO: Is this Min vs Max correct?
+                2 * i.to_usize() + if fix_type == FixType::Max { 2 } else { 1 }
             }
+            // This is irrelevant
             NodeKind::P1(_) => 0,
         };
         Relevance(rel, n)
@@ -167,17 +170,20 @@ impl Game {
                 .map(|&n0| self.p0_ids[n0])
         };
 
+        // Both have 2 * var_count + 1 relevance and low node id
+        let w1_nodes = [NodeId::W1, NodeId::L0].into_iter();
         // These has <=-1 reward and high node id
         let p0_f1_nodes = iter(FixType::Min).rev();
-        // These have -1/0 reward and low node id
-        let wl_nodes = [NodeId::W1, NodeId::L0, NodeId::W0, NodeId::L1];
+        // These have 0 reward and lower node id than others
+        let w0_nodes = [NodeId::W0, NodeId::L1].into_iter();
         // These have 0 reward and bigger node id than W/L nodes
         let p1_nodes = self.p1_ids.iter().copied();
         // These have >=2 reward and are sorted by node id.
         let p0_f0_nodes = iter(FixType::Max);
 
-        p0_f1_nodes
-            .chain(wl_nodes)
+        w1_nodes
+            .chain(p0_f1_nodes)
+            .chain(w0_nodes)
             .chain(p1_nodes)
             .chain(p0_f0_nodes)
     }
@@ -186,6 +192,7 @@ impl Game {
         let (idx, is_new) = self.p0_set.insert_full(node);
         let p0id = NodeP0Id::from_usize(idx);
 
+        // If the node is new we need to setup its slot in the various IndexVecs
         if is_new {
             let nid = self.nodes.push(NodeKind::P0(p0id));
             self.p0_ids.push(nid);
@@ -197,6 +204,7 @@ impl Game {
             self.p0_by_var[i].push(p0id);
         }
 
+        // Always set predecessors/successors
         self.p0_preds[p0id].push(pred);
         self.p1_succs[pred].push(p0id);
 
@@ -211,6 +219,7 @@ impl Game {
         let (idx, is_new) = self.p1_set.insert_full(node);
         let p1id = NodeP1Id::from_usize(idx);
 
+        // If the node is new we need to setup its slot in the various IndexVecs
         if is_new {
             let nid = self.nodes.push(NodeKind::P1(p1id));
             self.p1_ids.push(nid);
@@ -219,6 +228,7 @@ impl Game {
             self.p1_succs.push(Vec::new());
         }
 
+        // Always set predecessors/successors
         self.p0_succs[pred].push(p1id);
         self.p1_preds[p1id].push(pred);
 
