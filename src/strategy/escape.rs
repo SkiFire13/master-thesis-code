@@ -18,33 +18,33 @@ pub fn update_w01(
     );
 
     // TODO: Maybe avoid iterating over all nodes?
-    for (p0, &n0) in game.p0_ids.enumerate() {
+    for (p0, &n0) in game.p0.node_ids.enumerate() {
         let losing = game.relevance_of(profiles[n0].most_relevant).player() == Player::P1;
         if losing && !escaping.contains(&n0) {
-            game.p0_w1.push(p0);
+            game.p0.w1.push(p0);
 
-            for &p1 in &game.p0_preds[p0] {
-                game.p1_w1.push(p1);
+            for &p1 in &game.p0.preds[p0] {
+                game.p1.w1.push(p1);
                 // TODO: Something to update?
             }
 
             // TODO: Update predecessors of successors of p0
-            game.p0_succs[p0].clear();
+            game.p0.succs[p0].clear();
         }
     }
 
-    for (p1, &n1) in game.p1_ids.enumerate() {
+    for (p1, &n1) in game.p1.node_ids.enumerate() {
         let losing = game.relevance_of(profiles[n1].most_relevant).player() == Player::P0;
         if losing && !escaping.contains(&n1) {
-            game.p1_w0.push(p1);
+            game.p1.w0.push(p1);
 
-            for &p0 in &game.p1_preds[p1] {
-                game.p0_w0.push(p0);
+            for &p0 in &game.p1.preds[p1] {
+                game.p0.w0.push(p0);
                 // TODO: Something to update?
             }
 
             // TODO: Update predecessors of successors of p0?
-            game.p1_succs[p1].clear();
+            game.p1.succs[p1].clear();
         }
     }
 }

@@ -79,6 +79,12 @@ impl<I, T> From<Vec<T>> for IndexedVec<I, T> {
     }
 }
 
+impl<I, T, const N: usize> From<[T; N]> for IndexedVec<I, T> {
+    fn from(value: [T; N]) -> Self {
+        Self { vec: value.into(), _marker: PhantomData }
+    }
+}
+
 impl<I, T> FromIterator<T> for IndexedVec<I, T> {
     fn from_iter<IT: IntoIterator<Item = T>>(iter: IT) -> Self {
         Vec::from_iter(iter).into()

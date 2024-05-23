@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::index::IndexedVec;
 use crate::strategy::game::{NodeId, Player};
 
-use super::game::{Game, NodeKind};
+use super::game::{Game, NodeKind, WinState};
 use super::improvement::PlayProfile;
 
 pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
@@ -60,7 +60,8 @@ fn e2(
             let f = game.formula_of(n);
             if f.is_false() {
                 // The formula is false so the successor is W1
-                game.p0_w1.push(n);
+                game.p0.win[n] = WinState::Win1;
+                game.p0.w1.push(n);
                 return;
             }
 
@@ -80,14 +81,15 @@ fn e2(
         }
         NodeKind::P1(n) => {
             // The node has no move at all, so its only successor is W0, add it to that set.
-            if game.p1_set[n].is_empty() {
-                game.p1_w0.push(n);
+            if game.p1.data[n].is_empty() {
+                game.p1.win[n] = WinState::Win0;
+                game.p1.w0.push(n);
                 return;
             }
 
             // TODO: This doesn't skip already explored nodes.
             // TODO: Set node as non-escaping when it has already visited all successors.
-            for &bi in &*game.p1_set[n].clone() {
+            for &bi in &*game.p1.data[n].clone() {
                 let (p0, is_new) = game.insert_p0(n, bi);
                 if is_new {
                     add(NodeKind::P0(p0));
