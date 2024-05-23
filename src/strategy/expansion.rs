@@ -57,6 +57,7 @@ fn e2(
             // TODO: apply decisions and maybe assumptions?
             _ = profiles;
 
+            // TODO: This doesn't skip already explored nodes.
             let mov = match game.formula_of(n).next_move() {
                 Some(mov) => mov,
                 None => {
@@ -72,7 +73,7 @@ fn e2(
             }
         }
         NodeKind::P1(n) => {
-            // TODO: Skip already explored nodes?
+            // TODO: This doesn't skip already explored nodes.
             for &bi in &*game.p1_set[n].clone() {
                 let (p0, is_new) = game.insert_p0(n, bi);
                 if is_new {
