@@ -1,10 +1,13 @@
 use crate::index::IndexVec;
 use crate::strategy::expansion::expand;
-use crate::strategy::game::{Game, GameStrategy, NodeId, NodeP0Id, NodeP1Id};
+use crate::strategy::game::{Game, GameStrategy, NodeId};
 use crate::strategy::improvement::{improve, valuation, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisElemId;
+
+use super::escape::update_w01;
+use super::game::NodeP0Id;
 
 pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
     // Special case to ensure there's always a move possible.
@@ -13,20 +16,10 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
     }
 
     let mut game = Game::new(b, i, moves);
+    let mut strategy = GameStrategy::new();
 
     expand(&mut game, &initial_play_profiles());
-
-    // TODO: init W0/W1
-
-    // Select initial strategy by picking a random successor for each p0 node.
-    let mut strategy = {
-        let direct = game
-            .p0_succs
-            .iter()
-            .map(|succs| succs.first().copied())
-            .collect::<IndexVec<NodeP0Id, Option<NodeP1Id>>>();
-        GameStrategy::from_direct(&game, direct)
-    };
+    strategy.expand(&game);
 
     loop {
         let (profiles, final_strategy) = loop {
@@ -38,12 +31,19 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
             }
         };
 
-        _ = (profiles, final_strategy);
+        update_w01(&mut game, &profiles, &final_strategy);
 
-        // TODO: update W0/W1
-        // TODO: exit if INIT/(b, i) is in W0/W1
-        // TODO: expand graph
-        // TODO: expand strategy
+        // TODO: make this much less expensive
+        match () {
+            // The initial node is definitely winning
+            _ if game.p0_w0.contains(&NodeP0Id::INIT) => return true,
+            // The initial node is definitely losing
+            _ if game.p0_w1.contains(&NodeP0Id::INIT) => return false,
+            _ => {}
+        }
+
+        expand(&mut game, &profiles);
+        strategy.expand(&game);
     }
 }
 

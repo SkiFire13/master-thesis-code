@@ -1,3 +1,4 @@
+pub mod escape;
 pub mod expansion;
 pub mod game;
 pub mod improvement;

@@ -57,12 +57,18 @@ fn e2(
             // TODO: apply decisions and maybe assumptions?
             _ = profiles;
 
+            let f = game.formula_of(n);
+            if f.is_false() {
+                // The formula is false so the successor is W1
+                game.p0_w1.push(n);
+                return;
+            }
+
             // TODO: This doesn't skip already explored nodes.
             let mov = match game.formula_of(n).next_move() {
                 Some(mov) => mov,
                 None => {
-                    // The formula is false so the successor is W1
-                    game.w1_preds.push(n);
+                    // TODO: Set node as non-escaping.
                     return;
                 }
             };
@@ -73,7 +79,14 @@ fn e2(
             }
         }
         NodeKind::P1(n) => {
+            // The node has no move at all, so its only successor is W0, add it to that set.
+            if game.p1_set[n].is_empty() {
+                game.p1_w0.push(n);
+                return;
+            }
+
             // TODO: This doesn't skip already explored nodes.
+            // TODO: Set node as non-escaping when it has already visited all successors.
             for &bi in &*game.p1_set[n].clone() {
                 let (p0, is_new) = game.insert_p0(n, bi);
                 if is_new {

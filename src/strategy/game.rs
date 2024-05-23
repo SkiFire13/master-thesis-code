@@ -1,6 +1,5 @@
 use std::cmp::Reverse;
 use std::rc::Rc;
-use std::slice;
 
 use either::Either::{Left, Right};
 
@@ -22,7 +21,7 @@ impl NodeId {
     pub const INIT: NodeId = NodeId(4);
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NodeKind {
     L0,
     L1,
@@ -34,6 +33,10 @@ pub enum NodeKind {
 
 new_index!(pub index NodeP0Id);
 new_index!(pub index NodeP1Id);
+
+impl NodeP0Id {
+    pub const INIT: NodeP0Id = NodeP0Id(0);
+}
 
 pub struct Game {
     pub formulas: EqsFormulas,
@@ -50,7 +53,7 @@ pub struct Game {
     // Predecessors of each node type
     pub p0_preds: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
     pub p1_preds: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
-    pub w1_preds: Vec<NodeP0Id>,
+
     // Successors of each node type
     pub p0_succs: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
     pub p1_succs: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
@@ -58,9 +61,14 @@ pub struct Game {
     // Player 0 nodes grouped by VarId, used for sorting by reward.
     // Each inner vec is assumed to be sorted by NodeId.
     pub p0_by_var: IndexVec<VarId, Vec<NodeP0Id>>,
-    // TODO: w0: Set<NodeId>,
-    // TODO: w1: Set<NodeId>,
-    // TODO: support for incrementally extending w0 and w1
+
+    // TODO: Are all these vecs needed?
+    pub p0_w0: Vec<NodeP0Id>,
+    pub p0_w1: Vec<NodeP0Id>,
+    pub p1_w0: Vec<NodeP1Id>,
+    pub p1_w1: Vec<NodeP1Id>,
+
+    pub escaping: Set<NodeId>,
 }
 
 impl Game {
@@ -86,11 +94,18 @@ impl Game {
 
             p0_preds: IndexVec::new(),
             p1_preds: IndexVec::new(),
-            w1_preds: Vec::new(),
+
             p0_succs: IndexVec::new(),
             p1_succs: IndexVec::new(),
 
             p0_by_var,
+
+            p0_w0: Vec::new(),
+            p0_w1: Vec::new(),
+            p1_w0: Vec::new(),
+            p1_w1: Vec::new(),
+
+            escaping: Set::new(),
         }
     }
 
@@ -123,10 +138,6 @@ impl Game {
         self.formulas.get(b, i)
     }
 
-    pub fn w0_pred(&self) -> Option<NodeP1Id> {
-        self.p1_set.get_index_of(&[][..]).map(NodeP1Id)
-    }
-
     pub fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         match self.resolve(n) {
             // Successors of special nodes are only other special nodes.
@@ -147,18 +158,16 @@ impl Game {
             NodeKind::L0 => Left(&[NodeId::W1][..]),
             NodeKind::L1 => Left(&[NodeId::W0][..]),
             // The predecessor of the W0 node is the empty P1 node
-            NodeKind::W0 => Left(
-                self.w0_pred()
-                    .map_or(&[][..], |n| slice::from_ref(&self.p1_ids[n])),
-            ),
+            NodeKind::W0 => Right(Left(self.p1_w0.iter())),
             // The predecessor of the W1 node are all those P0 nodes with a false formula.
-            NodeKind::W1 => Right(Right(self.w1_preds.iter())),
+            NodeKind::W1 => Right(Right(self.p0_w1.iter())),
             // The predecessors of a p0/p1 node are all those recorded in the game.
-            NodeKind::P0(n) => Right(Left(self.p0_preds[n].iter().map(|&n| self.p1_ids[n]))),
+            NodeKind::P0(n) => Right(Left(self.p0_preds[n].iter())),
             NodeKind::P1(n) => Right(Right(self.p1_preds[n].iter())),
         }
         .map_left(|slice| slice.iter().copied())
         .map_right(|inner| inner.map_right(|iter| iter.map(|&n| self.p0_ids[n])))
+        .map_right(|inner| inner.map_left(|iter| iter.map(|&n| self.p1_ids[n])))
     }
 
     pub fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
@@ -244,18 +253,27 @@ pub struct GameStrategy {
 }
 
 impl GameStrategy {
-    pub fn from_direct(game: &Game, direct: IndexVec<NodeP0Id, Option<NodeP1Id>>) -> Self {
-        let mut inverse = IndexVec::from(vec![Set::new(); game.p1_ids.len()]);
-        let mut inverse_w1 = Set::new();
+    pub fn new() -> Self {
+        Self {
+            direct: IndexVec::new(),
+            inverse: IndexVec::new(),
+            inverse_w1: Set::new(),
+        }
+    }
 
-        for (n0, &n1) in direct.enumerate() {
-            match n1 {
-                Some(n1) => _ = inverse[n1].insert(n0),
-                None => _ = inverse_w1.insert(n0),
+    pub fn expand(&mut self, game: &Game) {
+        // Ensure the size of inverse is correct.
+        self.inverse.resize_with(game.p1_set.len(), Set::new);
+
+        // Select initial strategy by picking a random successor for each p0 node.
+        for (p0, succs) in game.p0_succs.enumerate().skip(self.direct.len()) {
+            let target = succs.get(0).copied();
+            self.direct.push(target);
+            match target {
+                Some(p1) => _ = self.inverse[p1].insert(p0),
+                None => _ = self.inverse_w1.insert(p0),
             }
         }
-
-        Self { direct, inverse, inverse_w1 }
     }
 }
 
