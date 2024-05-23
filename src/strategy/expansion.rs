@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use crate::index::IndexVec;
+use crate::index::IndexedVec;
 use crate::strategy::game::{NodeId, Player};
 
 use super::game::{Game, NodeKind};
 use super::improvement::PlayProfile;
 
-pub fn expand(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) {
+pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
     let mut a = e1(game, profiles);
     let mut new_a = Vec::new();
     let mut seen = HashSet::new();
@@ -25,7 +25,7 @@ pub fn expand(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) {
     }
 }
 
-fn e1(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) -> Vec<NodeKind> {
+fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeKind> {
     let init_node = NodeId::INIT;
     let relevant_node = profiles[init_node].most_relevant;
 
@@ -48,7 +48,7 @@ fn e1(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) -> Vec<NodeKind
 fn e2(
     game: &mut Game,
     w: NodeKind,
-    profiles: &IndexVec<NodeId, PlayProfile>,
+    profiles: &IndexedVec<NodeId, PlayProfile>,
     mut add: impl FnMut(NodeKind),
 ) {
     match w {

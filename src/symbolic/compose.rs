@@ -1,10 +1,10 @@
-use crate::index::{AsIndex, IndexVec};
+use crate::index::{AsIndex, IndexedVec};
 
 use super::eq::{Expr, FixEq, FixType, FunId, VarId};
 use super::formula::{simplify_and, simplify_or, BasisElemId, Formula};
 
 pub struct FunsFormulas {
-    formulas: IndexVec<FunId, IndexVec<BasisElemId, Formula>>,
+    formulas: IndexedVec<FunId, IndexedVec<BasisElemId, Formula>>,
 }
 
 impl FunsFormulas {
@@ -20,7 +20,7 @@ pub struct EqsFormulas {
     /// Number of columns / length of a row.
     basis_len: usize,
     /// Type of fixpoint for each equation.
-    pub eq_fix_types: IndexVec<VarId, FixType>,
+    pub eq_fix_types: IndexedVec<VarId, FixType>,
 }
 
 impl EqsFormulas {

@@ -1,4 +1,4 @@
-use crate::index::IndexVec;
+use crate::index::IndexedVec;
 use crate::strategy::expansion::expand;
 use crate::strategy::game::{Game, GameStrategy, NodeId};
 use crate::strategy::improvement::{improve, valuation, PlayProfile};
@@ -18,10 +18,12 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
     let mut game = Game::new(b, i, moves);
     let mut strategy = GameStrategy::new();
 
+    // Initial expansion
     expand(&mut game, &initial_play_profiles());
     strategy.expand(&game);
 
     loop {
+        // Try to improve while possible
         let (profiles, final_strategy) = loop {
             let (profiles, final_strategy) = valuation(&game, &strategy);
             let improved = improve(&game, &mut strategy, &profiles);
@@ -31,6 +33,7 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
             }
         };
 
+        // Update definitely winning/losing nodes.
         update_w01(&mut game, &profiles, &final_strategy);
 
         // TODO: make this much less expensive
@@ -42,12 +45,14 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
             _ => {}
         }
 
+        // We still don't know whether the initial node is definitely winning/losing
+        // so expand again the graph.
         expand(&mut game, &profiles);
         strategy.expand(&game);
     }
 }
 
-fn initial_play_profiles() -> IndexVec<NodeId, PlayProfile> {
+fn initial_play_profiles() -> IndexedVec<NodeId, PlayProfile> {
     let w0 = PlayProfile {
         most_relevant: NodeId::W0,
         relevant_before: Vec::new(),
@@ -59,7 +64,7 @@ fn initial_play_profiles() -> IndexVec<NodeId, PlayProfile> {
         count_before: 0,
     };
 
-    IndexVec::from(vec![
+    IndexedVec::from(vec![
         // W0
         w0.clone(),
         // L0

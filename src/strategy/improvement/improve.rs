@@ -1,4 +1,4 @@
-use crate::index::IndexVec;
+use crate::index::IndexedVec;
 use crate::strategy::game::NodeId;
 
 use super::profile::PlayProfile;
@@ -11,7 +11,7 @@ pub trait StrategyMut: Strategy {
 pub fn improve<S: StrategyMut>(
     graph: &S::Graph,
     strategy: &mut S,
-    profiles: &IndexVec<NodeId, PlayProfile>,
+    profiles: &IndexedVec<NodeId, PlayProfile>,
 ) -> bool {
     let mut improved = false;
 

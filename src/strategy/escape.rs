@@ -1,4 +1,4 @@
-use crate::index::IndexVec;
+use crate::index::IndexedVec;
 use crate::strategy::game::Player;
 
 use super::game::{Game, NodeId};
@@ -7,8 +7,8 @@ use super::Set;
 
 pub fn update_w01(
     game: &mut Game,
-    profiles: &IndexVec<NodeId, PlayProfile>,
-    strategy: &IndexVec<NodeId, NodeId>,
+    profiles: &IndexedVec<NodeId, PlayProfile>,
+    strategy: &IndexedVec<NodeId, NodeId>,
 ) {
     // Find nodes that are transitively escaping, assuming the optimal strategy for the opponent.
     let escaping = find_escaping(
@@ -53,9 +53,9 @@ pub fn update_w01(
 fn find_escaping<I: Iterator<Item = NodeId>>(
     escaping: impl Iterator<Item = NodeId>,
     predecessors_of: impl Fn(NodeId) -> I,
-    strategy: &IndexVec<NodeId, NodeId>,
+    strategy: &IndexedVec<NodeId, NodeId>,
 ) -> Set<NodeId> {
-    let mut inverse_strategy = IndexVec::from(vec![Vec::new(); strategy.len()]);
+    let mut inverse_strategy = IndexedVec::from(vec![Vec::new(); strategy.len()]);
     for (n, &m) in strategy.enumerate() {
         inverse_strategy[m].push(n);
     }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use either::Either::{Left, Right};
 
-use crate::index::{new_index, AsIndex, IndexSet, IndexVec};
+use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::{BasisElemId, Formula};
@@ -42,25 +42,25 @@ pub struct Game {
     pub formulas: EqsFormulas,
 
     // Set of nodes, to give them an identity (the index in their set)
-    pub p0_set: IndexSet<NodeP0Id, (BasisElemId, VarId)>,
-    pub p1_set: IndexSet<NodeP1Id, Rc<[(BasisElemId, VarId)]>>,
+    pub p0_set: IndexedSet<NodeP0Id, (BasisElemId, VarId)>,
+    pub p1_set: IndexedSet<NodeP1Id, Rc<[(BasisElemId, VarId)]>>,
 
     // Map between node ids (assumed to also be sorted according to NodeId)
-    pub nodes: IndexVec<NodeId, NodeKind>,
-    pub p0_ids: IndexVec<NodeP0Id, NodeId>,
-    pub p1_ids: IndexVec<NodeP1Id, NodeId>,
+    pub nodes: IndexedVec<NodeId, NodeKind>,
+    pub p0_ids: IndexedVec<NodeP0Id, NodeId>,
+    pub p1_ids: IndexedVec<NodeP1Id, NodeId>,
 
     // Predecessors of each node type
-    pub p0_preds: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
-    pub p1_preds: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+    pub p0_preds: IndexedVec<NodeP0Id, Vec<NodeP1Id>>,
+    pub p1_preds: IndexedVec<NodeP1Id, Vec<NodeP0Id>>,
 
     // Successors of each node type
-    pub p0_succs: IndexVec<NodeP0Id, Vec<NodeP1Id>>,
-    pub p1_succs: IndexVec<NodeP1Id, Vec<NodeP0Id>>,
+    pub p0_succs: IndexedVec<NodeP0Id, Vec<NodeP1Id>>,
+    pub p1_succs: IndexedVec<NodeP1Id, Vec<NodeP0Id>>,
 
     // Player 0 nodes grouped by VarId, used for sorting by reward.
     // Each inner vec is assumed to be sorted by NodeId.
-    pub var_to_p0: IndexVec<VarId, Vec<NodeP0Id>>,
+    pub var_to_p0: IndexedVec<VarId, Vec<NodeP0Id>>,
 
     // TODO: Are all these vecs needed?
     pub p0_w0: Vec<NodeP0Id>,
@@ -73,30 +73,30 @@ pub struct Game {
 
 impl Game {
     pub fn new(b: BasisElemId, i: VarId, formulas: EqsFormulas) -> Self {
-        let mut p0_by_var = IndexVec::from(vec![Vec::new(); formulas.var_count()]);
+        let mut p0_by_var = IndexedVec::from(vec![Vec::new(); formulas.var_count()]);
         p0_by_var[i].push(NodeP0Id(0));
 
         Self {
             formulas,
 
-            p0_set: IndexSet::from([(b, i)]),
-            p1_set: IndexSet::new(),
+            p0_set: IndexedSet::from([(b, i)]),
+            p1_set: IndexedSet::new(),
 
-            nodes: IndexVec::from(vec![
+            nodes: IndexedVec::from(vec![
                 NodeKind::W0,
                 NodeKind::L0,
                 NodeKind::W1,
                 NodeKind::L1,
                 NodeKind::P0(NodeP0Id(0)),
             ]),
-            p0_ids: IndexVec::from(vec![NodeId::INIT]),
-            p1_ids: IndexVec::new(),
+            p0_ids: IndexedVec::from(vec![NodeId::INIT]),
+            p1_ids: IndexedVec::new(),
 
-            p0_preds: IndexVec::new(),
-            p1_preds: IndexVec::new(),
+            p0_preds: IndexedVec::new(),
+            p1_preds: IndexedVec::new(),
 
-            p0_succs: IndexVec::new(),
-            p1_succs: IndexVec::new(),
+            p0_succs: IndexedVec::new(),
+            p1_succs: IndexedVec::new(),
 
             var_to_p0: p0_by_var,
 
@@ -247,16 +247,16 @@ impl Game {
 
 pub struct GameStrategy {
     // The successor is None if it's actually W1
-    pub direct: IndexVec<NodeP0Id, Option<NodeP1Id>>,
-    pub inverse: IndexVec<NodeP1Id, Set<NodeP0Id>>,
+    pub direct: IndexedVec<NodeP0Id, Option<NodeP1Id>>,
+    pub inverse: IndexedVec<NodeP1Id, Set<NodeP0Id>>,
     pub inverse_w1: Set<NodeP0Id>,
 }
 
 impl GameStrategy {
     pub fn new() -> Self {
         Self {
-            direct: IndexVec::new(),
-            inverse: IndexVec::new(),
+            direct: IndexedVec::new(),
+            inverse: IndexedVec::new(),
             inverse_w1: Set::new(),
         }
     }

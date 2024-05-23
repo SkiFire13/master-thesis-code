@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use indexmap::IndexSet;
 
-use crate::index::IndexVec;
+use crate::index::IndexedVec;
 use crate::strategy::game::{NodeId, Player, Relevance};
 use crate::strategy::NodeMap;
 
@@ -11,10 +11,10 @@ use super::GetRelevance;
 
 #[derive(Default)]
 struct TestGame {
-    relevance: IndexVec<NodeId, usize>,
-    players: IndexVec<NodeId, Player>,
-    successors: IndexVec<NodeId, Vec<NodeId>>,
-    predecessors: IndexVec<NodeId, Vec<NodeId>>,
+    relevance: IndexedVec<NodeId, usize>,
+    players: IndexedVec<NodeId, Player>,
+    successors: IndexedVec<NodeId, Vec<NodeId>>,
+    predecessors: IndexedVec<NodeId, Vec<NodeId>>,
     nodes_by_reward: Vec<NodeId>,
 }
 

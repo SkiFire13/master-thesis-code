@@ -4,7 +4,7 @@ use std::iter;
 
 use either::Either::{Left, Right};
 
-use crate::index::IndexVec;
+use crate::index::IndexedVec;
 use crate::strategy::game::{NodeId, Player, Relevance};
 use crate::strategy::{NodeMap, Set};
 
@@ -66,13 +66,13 @@ impl<'a, S: Strategy> Graph<'a, S> {
 pub fn valuation<S: Strategy>(
     game: &S::Graph,
     strategy: &S,
-) -> (IndexVec<NodeId, PlayProfile>, IndexVec<NodeId, NodeId>) {
+) -> (IndexedVec<NodeId, PlayProfile>, IndexedVec<NodeId, NodeId>) {
     // Build graph with p0 moves restricted to the given strategy.
     let graph = &Graph { game, strategy };
 
     let mut evaluated = Set::new();
-    let mut profiles = IndexVec::from(vec![PlayProfile::default(); graph.node_count()]);
-    let mut final_strategy = IndexVec::from(vec![NodeId(graph.node_count()); graph.node_count()]);
+    let mut profiles = IndexedVec::from(vec![PlayProfile::default(); graph.node_count()]);
+    let mut final_strategy = IndexedVec::from(vec![NodeId(graph.node_count()); graph.node_count()]);
 
     // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
     // At each iteration we will try to fix all the loops that go through w, if w is not
@@ -170,8 +170,8 @@ fn subevaluation(
     graph: &Graph<impl Strategy>,
     w: NodeId,
     k_set: &Set<NodeId>,
-    profiles: &mut IndexVec<NodeId, PlayProfile>,
-    final_strategy: &mut IndexVec<NodeId, NodeId>,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexedVec<NodeId, NodeId>,
 ) {
     let mut k_nodes = k_set.iter().copied().collect::<Vec<_>>();
 
@@ -226,7 +226,7 @@ fn prevent_paths(
     graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
     u: NodeId,
-    profiles: &mut IndexVec<NodeId, PlayProfile>,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
 ) {
     // Find nodes that can reach w without going through u.
     let u_set = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
@@ -250,7 +250,7 @@ fn force_paths(
     graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
     u: NodeId,
-    profiles: &mut IndexVec<NodeId, PlayProfile>,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
 ) {
     // Find nodes that can reach u without going through w.
     let u_set = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
@@ -290,8 +290,8 @@ where
 fn set_maximal_distances(
     graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
-    profiles: &mut IndexVec<NodeId, PlayProfile>,
-    final_strategy: &mut IndexVec<NodeId, NodeId>,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexedVec<NodeId, NodeId>,
 ) {
     let mut remaining_successors = graph
         .k_nodes
@@ -320,8 +320,8 @@ fn set_maximal_distances(
 fn set_minimal_distances(
     graph: &mut RestrictedGraph<impl Strategy>,
     w: NodeId,
-    profiles: &mut IndexVec<NodeId, PlayProfile>,
-    final_strategy: &mut IndexVec<NodeId, NodeId>,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexedVec<NodeId, NodeId>,
 ) {
     let mut seen = Set::new();
     let mut queue = VecDeque::from([(w, graph.successors_of(w).next().unwrap(), 0)]);
