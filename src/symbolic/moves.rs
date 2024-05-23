@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use indexmap::IndexSet;
 
@@ -57,11 +58,11 @@ impl Formula {
         }
     }
 
-    pub fn next_move(&self) -> Option<Vec<(BasisElemId, VarId)>> {
+    pub fn next_move(&self) -> Option<Rc<[(BasisElemId, VarId)]>> {
         match self {
             _ if self.is_false() => None,
-            _ if self.is_true() => Some(Vec::new()),
-            _ => Some(self.build_next_move()),
+            _ if self.is_true() => Some(Rc::new([])),
+            _ => Some(self.build_next_move().into()),
         }
     }
 
@@ -94,10 +95,14 @@ impl Formula {
         out
     }
 
+    // TODO: This is wrong, as it could lead to moves that become invalid
+    // after the assumptions are discovered to be wrong.
+    // Preferring/avoiding moves is ok, but variables still need to be kept
+    // in the output (i.e. no rollbacks on early exists)
     pub fn next_move_optimized(
         &self,
         assumptions: impl Fn(BasisElemId, VarId) -> Assumption,
-    ) -> Option<Vec<(BasisElemId, VarId)>> {
+    ) -> Option<Rc<[(BasisElemId, VarId)]>> {
         fn build_next_move_inner(
             f: &Formula,
             assumptions: &impl Fn(BasisElemId, VarId) -> Assumption,
@@ -177,9 +182,17 @@ impl Formula {
 
         let mut out = IndexSet::new();
         match build_next_move_inner(self, &assumptions, &mut out) {
-            Assumption::None => Some(out.into_iter().collect()),
-            Assumption::True => Some(Vec::new()),
-            Assumption::False => None,
+            Assumption::None => {
+                let mut out = out.into_iter().collect::<Rc<[_]>>();
+                // TODO: which is the best order?
+                // Sorting because this needs to be normalized.
+                Rc::get_mut(&mut out)
+                    .unwrap()
+                    .sort_unstable_by_key(|&(b, i)| (i, b));
+                Some(out)
+            }
+            Assumption::True => Some(Rc::new([])),
+            Assumption::False => self.next_move(),
         }
     }
 }

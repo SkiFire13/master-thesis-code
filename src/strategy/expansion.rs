@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::index::IndexVec;
-use crate::strategy::game::{NodeId, NodeP0Id, Player};
+use crate::strategy::game::{NodeId, Player};
 
 use super::game::{Game, NodeKind};
 use super::improvement::PlayProfile;
@@ -12,10 +12,8 @@ pub fn expand(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) {
     let mut seen = HashSet::new();
 
     while !a.is_empty() {
-        game.nodes.extend(&a);
-
         for v in a.drain(..) {
-            e2(game, v, |n| {
+            e2(game, v, profiles, |n| {
                 // Make new_a unique
                 if seen.insert(n) {
                     new_a.push(n);
@@ -48,34 +46,40 @@ fn e1(game: &mut Game, profiles: &IndexVec<NodeId, PlayProfile>) -> Vec<NodeKind
     }
 }
 
-fn e2(game: &mut Game, w: NodeKind, mut add: impl FnMut(NodeKind)) {
+fn e2(
+    game: &mut Game,
+    w: NodeKind,
+    profiles: &IndexVec<NodeId, PlayProfile>,
+    mut add: impl FnMut(NodeKind),
+) {
     match w {
-        // TODO: will these ever be hit?
-        NodeKind::W0 => add(NodeKind::L1),
-        NodeKind::L0 => add(NodeKind::W1),
-        NodeKind::W1 => add(NodeKind::L0),
-        NodeKind::L1 => add(NodeKind::W0),
-        NodeKind::P0(n) if game.formula_of(n).is_false() => add(NodeKind::W1),
-        NodeKind::P1(n) if game.p1_set[n].is_empty() => add(NodeKind::W0),
+        NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(n) => {
-            // TODO: apply decisions and stuff
-            _ = n;
-            todo!();
+            // TODO: apply decisions and maybe assumptions?
+            _ = profiles;
+
+            let mov = match game.formula_of(n).next_move() {
+                Some(mov) => mov,
+                None => {
+                    // The formula is false so the successor is W1
+                    game.w1_preds.push(n);
+                    return;
+                }
+            };
+
+            let (p1, is_new) = game.insert_p1(n, mov);
+            if is_new {
+                add(NodeKind::P1(p1))
+            }
         }
         NodeKind::P1(n) => {
-            for &bi in &game.p1_set[n] {
-                if game.p0_set.get(&bi).is_none() {
-                    // TODO: Better add node, update succ/pred etc etc
-                    let (idx, _) = game.p0_set.insert_full(bi);
-                    add(NodeKind::P0(NodeP0Id(idx)))
-                    // TODO: Add forward and backward edges
-
-                    // Only in synchronous version:
-                    // break;
+            // TODO: Skip already explored nodes?
+            for &bi in &*game.p1_set[n].clone() {
+                let (p0, is_new) = game.insert_p0(n, bi);
+                if is_new {
+                    add(NodeKind::P0(p0));
                 }
             }
         }
     }
-
-    todo!()
 }

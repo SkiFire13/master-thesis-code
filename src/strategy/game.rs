@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use std::rc::Rc;
 use std::slice;
 
 use either::Either::{Left, Right};
@@ -39,7 +40,7 @@ pub struct Game {
 
     // Set of nodes, to give them an identity (the index in their set)
     pub p0_set: IndexSet<NodeP0Id, (BasisElemId, VarId)>,
-    pub p1_set: IndexSet<NodeP1Id, Vec<(BasisElemId, VarId)>>,
+    pub p1_set: IndexSet<NodeP1Id, Rc<[(BasisElemId, VarId)]>>,
 
     // Map between node ids (assumed to also be sorted according to NodeId)
     pub nodes: IndexVec<NodeId, NodeKind>,
@@ -120,7 +121,7 @@ impl Game {
     }
 
     pub fn w0_pred(&self) -> Option<NodeP1Id> {
-        self.p1_set.get_index_of(&Vec::new()).map(NodeP1Id)
+        self.p1_set.get_index_of(&[][..]).map(NodeP1Id)
     }
 
     pub fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
@@ -179,6 +180,49 @@ impl Game {
             .chain(wl_nodes)
             .chain(p1_nodes)
             .chain(p0_f0_nodes)
+    }
+
+    pub fn insert_p0(&mut self, pred: NodeP1Id, node: (BasisElemId, VarId)) -> (NodeP0Id, bool) {
+        let (idx, is_new) = self.p0_set.insert_full(node);
+        let p0id = NodeP0Id::from_usize(idx);
+
+        if is_new {
+            let nid = self.nodes.push(NodeKind::P0(p0id));
+            self.p0_ids.push(nid);
+
+            self.p0_preds.push(Vec::new());
+            self.p0_succs.push(Vec::new());
+
+            let (_, i) = node;
+            self.p0_by_var[i].push(p0id);
+        }
+
+        self.p0_preds[p0id].push(pred);
+        self.p1_succs[pred].push(p0id);
+
+        (p0id, is_new)
+    }
+
+    pub fn insert_p1(
+        &mut self,
+        pred: NodeP0Id,
+        node: Rc<[(BasisElemId, VarId)]>,
+    ) -> (NodeP1Id, bool) {
+        let (idx, is_new) = self.p1_set.insert_full(node);
+        let p1id = NodeP1Id::from_usize(idx);
+
+        if is_new {
+            let nid = self.nodes.push(NodeKind::P1(p1id));
+            self.p1_ids.push(nid);
+
+            self.p1_preds.push(Vec::new());
+            self.p1_succs.push(Vec::new());
+        }
+
+        self.p0_succs[pred].push(p1id);
+        self.p1_preds[p1id].push(pred);
+
+        (p1id, is_new)
     }
 }
 
