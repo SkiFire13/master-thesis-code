@@ -60,7 +60,7 @@ pub struct Game {
 
     // Player 0 nodes grouped by VarId, used for sorting by reward.
     // Each inner vec is assumed to be sorted by NodeId.
-    pub p0_by_var: IndexVec<VarId, Vec<NodeP0Id>>,
+    pub var_to_p0: IndexVec<VarId, Vec<NodeP0Id>>,
 
     // TODO: Are all these vecs needed?
     pub p0_w0: Vec<NodeP0Id>,
@@ -98,7 +98,7 @@ impl Game {
             p0_succs: IndexVec::new(),
             p1_succs: IndexVec::new(),
 
-            p0_by_var,
+            var_to_p0: p0_by_var,
 
             p0_w0: Vec::new(),
             p0_w1: Vec::new(),
@@ -172,7 +172,7 @@ impl Game {
 
     pub fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId> + '_ {
         let iter = |fix_type| {
-            self.p0_by_var
+            self.var_to_p0
                 .enumerate()
                 .filter(move |&(i, _)| self.formulas.eq_fix_types[i] == fix_type)
                 .flat_map(|(_, nodes)| nodes)
@@ -210,7 +210,7 @@ impl Game {
             self.p0_succs.push(Vec::new());
 
             let (_, i) = node;
-            self.p0_by_var[i].push(p0id);
+            self.var_to_p0[i].push(p0id);
         }
 
         // Always set predecessors/successors
