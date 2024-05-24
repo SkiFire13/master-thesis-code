@@ -211,6 +211,8 @@ impl Game {
             .chain(p0_f0_nodes)
     }
 
+    /// Inserts a p0 node given its predecessors, updating the sets of predecessors/successors
+    /// Returns the id of the node and whether it already existed or not.
     pub fn insert_p0(&mut self, pred: NodeP1Id, node: (BasisElemId, VarId)) -> (NodeP0Id, bool) {
         let (idx, is_new) = self.p0.data.insert_full(node);
         let p0id = NodeP0Id::from_usize(idx);
@@ -225,6 +227,8 @@ impl Game {
 
             let (_, i) = node;
             self.var_to_p0[i].push(p0id);
+
+            self.escaping.insert(nid);
         }
 
         // Always set predecessors/successors
@@ -234,6 +238,8 @@ impl Game {
         (p0id, is_new)
     }
 
+    /// Inserts a p1 node given its predecessors, updating the sets of predecessors/successors
+    /// Returns the id of the node and whether it already existed or not.
     pub fn insert_p1(
         &mut self,
         pred: NodeP0Id,
@@ -249,6 +255,8 @@ impl Game {
 
             self.p1.preds.push(Set::new());
             self.p1.succs.push(Set::new());
+
+            self.escaping.insert(nid);
         }
 
         // Always set predecessors/successors

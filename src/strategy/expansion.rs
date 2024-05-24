@@ -61,6 +61,7 @@ fn e2(
 
             if f.is_false() {
                 // The formula is false so the successor is W1
+                // and the node is winning for p1.
                 game.p0.win[n] = WinState::Win1;
                 game.p0.w1.push(n);
                 return;
@@ -70,7 +71,8 @@ fn e2(
             let mov = match game.formula_of(n).next_move() {
                 Some(mov) => mov,
                 None => {
-                    // TODO: Set node as non-escaping.
+                    // We no longer have valid moves, set the node as non-escaping.
+                    game.escaping.remove(&game.p0.node_ids[n]);
                     return;
                 }
             };
@@ -81,7 +83,8 @@ fn e2(
             }
         }
         NodeKind::P1(n) => {
-            // The node has no move at all, so its only successor is W0, add it to that set.
+            // The node has no move at all, so its only successor is W0
+            // and the node is winning for p0.
             if game.p1.data[n].is_empty() {
                 game.p1.win[n] = WinState::Win0;
                 game.p1.w0.push(n);
