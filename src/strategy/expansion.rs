@@ -67,6 +67,14 @@ fn e2(
                 return;
             }
 
+            // TODO: Idea for avoiding to explore the same moves again:
+            // - consider the play profile of the "starting" node of the expansion
+            // - keep track of the relevant nodes visited while exploring
+            // - consider nodes in the formula only if not visited, are winning, or
+            //   their play profile, when combined with the relevant nodes visited
+            //   improves the starting play profile.
+            // Problem: complex and deviates a lot from the paper's implementation.
+
             // TODO: This doesn't skip already explored nodes.
             let mov = match game.formula_of(n).next_move() {
                 Some(mov) => mov,
@@ -91,8 +99,9 @@ fn e2(
                 return;
             }
 
-            // TODO: This doesn't skip already explored nodes.
-            // TODO: Set node as non-escaping when it has already visited all successors.
+            // TODO: This works only because we always visit all nodes.
+            //       For a lazier strategy this would need to keep track of
+            //       unvisited successors and handle escaping/non-escaping nodes.
             for &bi in &*game.p1.data[n].clone() {
                 let (p0, is_new) = game.insert_p0(n, bi);
                 if is_new {
