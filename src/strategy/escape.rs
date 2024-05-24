@@ -1,7 +1,7 @@
 use crate::index::IndexedVec;
 use crate::strategy::game::Player;
 
-use super::game::{Game, NodeId};
+use super::game::{Game, NodeId, WinState};
 use super::improvement::PlayProfile;
 use super::Set;
 
@@ -21,35 +21,43 @@ pub fn update_w01(
     for (p0, &n0) in game.p0.node_ids.enumerate() {
         let losing = game.relevance_of(profiles[n0].most_relevant).player() == Player::P1;
         if losing && !escaping.contains(&n0) {
+            game.p0.win[p0] = WinState::Win1;
             game.p0.w1.push(p0);
 
             for &p1 in &game.p0.preds[p0] {
+                game.p1.win[p1] = WinState::Win1;
                 game.p1.w1.push(p1);
-                // TODO: Something to update?
             }
 
-            // TODO: Update predecessors of successors of p0
-            game.p0.succs[p0].clear();
+            // Optimization: remove successors so it's less work to see that this node is losing.
+            for p1 in std::mem::take(&mut game.p0.succs[p0]) {
+                game.p1.preds[p1].remove(&p0);
+            }
         }
     }
 
     for (p1, &n1) in game.p1.node_ids.enumerate() {
         let losing = game.relevance_of(profiles[n1].most_relevant).player() == Player::P0;
         if losing && !escaping.contains(&n1) {
+            game.p1.win[p1] = WinState::Win0;
             game.p1.w0.push(p1);
 
             for &p0 in &game.p1.preds[p1] {
+                game.p0.win[p0] = WinState::Win0;
                 game.p0.w0.push(p0);
-                // TODO: Something to update?
             }
 
-            // TODO: Update predecessors of successors of p0?
-            game.p1.succs[p1].clear();
+            for p0 in std::mem::take(&mut game.p1.succs[p1]) {
+                game.p0.preds[p0].remove(&p1);
+            }
         }
     }
 }
 
 // TODO: Test this
+// For each player find the nodes that can reach escaping nodes
+// assuming the opponent player plays the given strategy.
+// This assumes a bipartite graph.
 fn find_escaping<I: Iterator<Item = NodeId>>(
     escaping: impl Iterator<Item = NodeId>,
     predecessors_of: impl Fn(NodeId) -> I,

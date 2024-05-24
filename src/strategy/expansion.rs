@@ -58,6 +58,7 @@ fn e2(
             _ = profiles;
 
             let f = game.formula_of(n);
+
             if f.is_false() {
                 // The formula is false so the successor is W1
                 game.p0.win[n] = WinState::Win1;
