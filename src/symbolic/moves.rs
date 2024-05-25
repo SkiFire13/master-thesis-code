@@ -5,8 +5,60 @@ use indexmap::IndexSet;
 
 use crate::symbolic::formula::simplify_and;
 
+use super::compose::EqsFormulas;
 use super::eq::VarId;
 use super::formula::{simplify_or, BasisElemId, Formula};
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct P0Pos {
+    pub b: BasisElemId,
+    pub i: VarId,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct P1Pos {
+    pub moves: Rc<[(BasisElemId, VarId)]>,
+}
+
+pub struct P0Moves(FormulaIter);
+
+pub struct P1Moves(Rc<[(BasisElemId, VarId)]>, usize);
+
+impl P0Pos {
+    pub fn moves(&self, formulas: &EqsFormulas) -> P0Moves {
+        P0Moves(FormulaIter::new(formulas.get(self.b, self.i)))
+    }
+}
+
+impl P1Pos {
+    pub fn moves(&self) -> P1Moves {
+        P1Moves(self.moves.clone(), 0)
+    }
+}
+
+impl Iterator for P0Moves {
+    type Item = P1Pos;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(P1Pos { moves: self.0.next()? })
+    }
+}
+
+impl Iterator for P1Moves {
+    type Item = P0Pos;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let &(b, i) = self.0.get(self.1)?;
+        self.1 += 1;
+        Some(P0Pos { b, i })
+    }
+}
+
+impl Default for P1Moves {
+    fn default() -> Self {
+        Self(Rc::new([]), 0)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Assumption {
@@ -193,13 +245,13 @@ impl Formula {
     }
 }
 
-pub struct FormulaIter {
+struct FormulaIter {
     has_next: bool,
     inner: FormulaIterInner,
 }
 
 impl FormulaIter {
-    pub fn new(f: &Formula) -> Self {
+    fn new(f: &Formula) -> Self {
         fn new_inner(f: &Formula) -> FormulaIterInner {
             use FormulaIterInner::*;
             match *f {

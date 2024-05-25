@@ -10,9 +10,12 @@ pub fn update_w01(
     profiles: &IndexedVec<NodeId, PlayProfile>,
     strategy: &IndexedVec<NodeId, NodeId>,
 ) {
+    let p0_escaping = game.p0.escaping.iter().map(|&n| game.p0.node_ids[n]);
+    let p1_escaping = game.p1.escaping.iter().map(|&n| game.p1.node_ids[n]);
+
     // Find nodes that are transitively escaping, assuming the optimal strategy for the opponent.
     let escaping = find_escaping(
-        game.escaping.iter().copied(),
+        p0_escaping.chain(p1_escaping),
         |n| game.predecessors_of(n),
         strategy,
     );

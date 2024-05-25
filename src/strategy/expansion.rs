@@ -25,41 +25,34 @@ pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
     }
 }
 
-fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeKind> {
+fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeId> {
     let init_node = NodeId::INIT;
     let relevant_node = profiles[init_node].most_relevant;
 
     match game.relevance_of(relevant_node).player() {
         Player::P0 => {
-            // TODO: Find unexplored node from p1 and expand it
-            // (Bonus: reachable from current strategy?)
-            todo!();
+            let p1 = game.p1.escaping.first().copied().unwrap();
+            let n = game.p1.node_ids[p1];
+            vec![n]
         }
         Player::P1 => {
-            // TODO: Find unexplored node from p0 and expand it
-            // (Bonus: reachable from current strategy?)
-
-            // TODO: also permanently apply decisions
-            todo!();
+            let p0 = game.p0.escaping.first().copied().unwrap();
+            let n = game.p0.node_ids[p0];
+            vec![n]
         }
     }
 }
 
 fn e2(
     game: &mut Game,
-    w: NodeKind,
+    w: NodeId,
     profiles: &IndexedVec<NodeId, PlayProfile>,
-    mut add: impl FnMut(NodeKind),
+    mut add: impl FnMut(NodeId),
 ) {
-    match w {
+    match game.resolve(w) {
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(n) => {
-            // TODO: apply decisions and maybe assumptions?
-            _ = profiles;
-
-            let f = game.formula_of(n);
-
-            if f.is_false() {
+            if game.formula_of(n).is_false() {
                 // The formula is false so the successor is W1
                 // and the node is winning for p1.
                 game.p0.win[n] = WinState::Win1;
@@ -67,46 +60,51 @@ fn e2(
                 return;
             }
 
-            // TODO: Idea for avoiding to explore the same moves again:
-            // - consider the play profile of the "starting" node of the expansion
-            // - keep track of the relevant nodes visited while exploring
-            // - consider nodes in the formula only if not visited, are winning, or
-            //   their play profile, when combined with the relevant nodes visited
-            //   improves the starting play profile.
-            // Problem: complex and deviates a lot from the paper's implementation.
+            // TODO: use profiles to avoid non-improving moves.
+            _ = profiles;
 
-            // TODO: This doesn't skip already explored nodes.
-            let mov = match game.formula_of(n).next_move() {
-                Some(mov) => mov,
-                None => {
-                    // We no longer have valid moves, set the node as non-escaping.
-                    game.escaping.remove(&game.p0.node_ids[n]);
-                    return;
-                }
+            let Some(mov) = game.p0.moves[n].next() else {
+                game.p0.escaping.remove(&n);
+                return;
             };
 
             let (p1, is_new) = game.insert_p1(n, mov);
             if is_new {
-                add(NodeKind::P1(p1))
+                add(game.p1.node_ids[p1])
             }
         }
         NodeKind::P1(n) => {
             // The node has no move at all, so its only successor is W0
             // and the node is winning for p0.
-            if game.p1.data[n].is_empty() {
+            if game.p1.pos[n].moves.is_empty() {
                 game.p1.win[n] = WinState::Win0;
                 game.p1.w0.push(n);
                 return;
             }
 
-            // TODO: This works only because we always visit all nodes.
-            //       For a lazier strategy this would need to keep track of
-            //       unvisited successors and handle escaping/non-escaping nodes.
-            for &bi in &*game.p1.data[n].clone() {
-                let (p0, is_new) = game.insert_p0(n, bi);
+            static SYMMETRIC: bool = true;
+
+            if SYMMETRIC {
+                // Symmetric version: consider next position
+                let Some(pos) = game.p1.moves[n].next() else {
+                    game.p1.escaping.remove(&n);
+                    return;
+                };
+
+                let (p0, is_new) = game.insert_p0(n, pos);
                 if is_new {
-                    add(NodeKind::P0(p0));
+                    add(game.p0.node_ids[p0]);
                 }
+            } else {
+                // Asymmetric version: iterate over all remaining moves
+                for pos in std::mem::take(&mut game.p1.moves[n]) {
+                    let (p0, is_new) = game.insert_p0(n, pos);
+                    if is_new {
+                        add(game.p0.node_ids[p0]);
+                    }
+                }
+
+                game.p1.escaping.remove(&n);
             }
         }
     }
