@@ -201,17 +201,15 @@ pub struct FormulaIter {
 impl FormulaIter {
     pub fn new(f: &Formula) -> Self {
         fn new_inner(f: &Formula) -> FormulaIterInner {
+            use FormulaIterInner::*;
             match *f {
-                Formula::Atom(b, i) => FormulaIterInner::Atom(b, i),
-                Formula::And(ref children) => {
-                    FormulaIterInner::And(children.iter().map(new_inner).collect())
-                }
-                Formula::Or(ref children) => {
-                    FormulaIterInner::Or(children.iter().map(new_inner).collect(), 0)
-                }
+                Formula::Atom(b, i) => Atom(b, i),
+                Formula::And(ref children) => And(children.iter().map(new_inner).collect()),
+                Formula::Or(ref children) => Or(children.iter().map(new_inner).collect(), 0),
             }
         }
 
+        // We initially have a next value iff the formula is not false.
         let has_next = !f.is_false();
         let inner = new_inner(f);
         Self { has_next, inner }
@@ -224,18 +222,25 @@ impl Iterator for FormulaIter {
     type Item = Rc<[(BasisElemId, VarId)]>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Handle false formula and end of iterator.
         if !self.has_next {
             return None;
         }
+
+        // The current value is the one to yield.
         let value = self.inner.current();
-        self.has_next = self.inner.move_next();
+        // Try advancing, if we reset then we reached the end of the iterator.
+        self.has_next = self.inner.advance();
+
         Some(value)
     }
 }
 
 enum FormulaIterInner {
     Atom(BasisElemId, VarId),
+    // Contains iterators for subformulas.
     And(Vec<FormulaIterInner>),
+    // Contains iterators for subformulas and the currently active subformula.
     Or(Vec<FormulaIterInner>, usize),
 }
 
@@ -243,14 +248,18 @@ impl FormulaIterInner {
     fn current(&self) -> Rc<[(BasisElemId, VarId)]> {
         fn current_inner(iter: &FormulaIterInner, out: &mut impl FnMut(BasisElemId, VarId)) {
             match *iter {
+                // An atom always yields itself
                 FormulaIterInner::Atom(b, i) => _ = out(b, i),
                 FormulaIterInner::And(ref iters) => {
+                    // An And yield one item for each subformula
                     iters.iter().for_each(|iter| current_inner(iter, out))
                 }
+                // An or yields the item yielded by the currently active subformula.
                 FormulaIterInner::Or(ref iters, pos) => current_inner(&iters[pos], out),
             }
         }
 
+        // Deduplicate
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         current_inner(self, &mut |b, i| {
@@ -266,27 +275,95 @@ impl FormulaIterInner {
         out.into()
     }
 
-    fn move_next(&mut self) -> bool {
+    // Advances to the next position or resets to the start if it reached the end.
+    // Returns whether it reached the end.
+    fn advance(&mut self) -> bool {
         match self {
+            // An atom always resets because it has only 1 item.
             FormulaIterInner::Atom(_, _) => false,
             FormulaIterInner::And(iters) => {
+                // Try to advance the last one, if it resets then advance the previous one
+                // and so on. This is similar to how adding 1 to 199 turns into 200.
                 for iter in iters.iter_mut().rev() {
-                    if iter.move_next() {
+                    if iter.advance() {
                         return true;
                     }
                 }
+                // If all sub-iterators resetted then we also reset.
                 false
             }
             FormulaIterInner::Or(iters, pos) => {
-                for iter in &mut iters[*pos..] {
-                    if iter.move_next() {
-                        return true;
-                    }
+                if iters[*pos].advance() {
+                    // We successfully advanced the current iterator
+                    true
+                } else if *pos + 1 < iters.len() {
+                    // Otherwise the current iterator resetted, go to the next one.
                     *pos += 1;
+                    true
+                } else {
+                    // If there's no next iterator then we reset too.
+                    *pos = 0;
+                    false
                 }
-                *pos = 0;
-                false
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BasisElemId, Formula, FormulaIter, VarId};
+    use std::rc::Rc;
+
+    fn naive_moves(f: &Formula) -> Vec<Vec<(BasisElemId, VarId)>> {
+        match *f {
+            Formula::Atom(b, i) => vec![vec![(b, i)]],
+            Formula::And(ref children) => {
+                children
+                    .iter()
+                    .map(naive_moves)
+                    .fold(vec![Vec::new()], |ms1, ms2| {
+                        ms1.iter()
+                            .flat_map(|m1| ms2.iter().map(|m2| [&m1[..], &m2[..]].concat()))
+                            .collect()
+                    })
+            }
+            Formula::Or(ref children) => children.iter().flat_map(naive_moves).collect(),
+        }
+    }
+
+    #[test]
+    fn simple() {
+        let f = Formula::Or(vec![
+            Formula::Atom(BasisElemId(0), VarId(0)),
+            Formula::And(vec![
+                Formula::Or(vec![
+                    Formula::Atom(BasisElemId(1), VarId(1)),
+                    Formula::Atom(BasisElemId(2), VarId(2)),
+                ]),
+                Formula::Or(vec![
+                    Formula::Atom(BasisElemId(3), VarId(3)),
+                    Formula::Atom(BasisElemId(4), VarId(4)),
+                    Formula::Atom(BasisElemId(5), VarId(5)),
+                ]),
+                Formula::Or(vec![
+                    Formula::Atom(BasisElemId(6), VarId(6)),
+                    Formula::Atom(BasisElemId(7), VarId(7)),
+                ]),
+            ]),
+        ]);
+
+        let naive = naive_moves(&f)
+            .into_iter()
+            .map(|mut m| {
+                m.sort_unstable_by_key(|&(b, i)| (i, b));
+                m.dedup();
+                Rc::<[_]>::from(m)
+            })
+            .collect::<Vec<_>>();
+
+        let with_iter = FormulaIter::new(&f).collect::<Vec<_>>();
+
+        assert_eq!(naive, with_iter);
     }
 }
