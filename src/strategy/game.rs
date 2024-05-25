@@ -71,11 +71,11 @@ pub struct Game {
     pub p1: NodesData<NodeP1Id, Rc<[(BasisElemId, VarId)]>, NodeP0Id>,
     // Map between node ids (assumed to also be sorted according to NodeId)
     pub nodes: IndexedVec<NodeId, NodeKind>,
+    // Set of nodes that can escape.
+    pub escaping: Set<NodeId>,
     // Player 0 nodes grouped by VarId, used for sorting by reward.
     // Each inner vec is assumed to be sorted by NodeId.
     pub var_to_p0: IndexedVec<VarId, Vec<NodeP0Id>>,
-    // Set of nodes that can escape.
-    pub escaping: Set<NodeId>,
 }
 
 impl Game {
@@ -224,11 +224,12 @@ impl Game {
 
             self.p0.preds.push(Set::new());
             self.p0.succs.push(Set::new());
+            self.p0.win.push(WinState::Unknown);
+
+            self.escaping.insert(nid);
 
             let (_, i) = node;
             self.var_to_p0[i].push(p0id);
-
-            self.escaping.insert(nid);
         }
 
         // Always set predecessors/successors
@@ -255,6 +256,7 @@ impl Game {
 
             self.p1.preds.push(Set::new());
             self.p1.succs.push(Set::new());
+            self.p1.win.push(WinState::Unknown);
 
             self.escaping.insert(nid);
         }
