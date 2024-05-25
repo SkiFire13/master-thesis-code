@@ -95,10 +95,6 @@ impl Formula {
         out
     }
 
-    // TODO: This is wrong, as it could lead to moves that become invalid
-    // after the assumptions are discovered to be wrong.
-    // Preferring/avoiding moves is ok, but variables still need to be kept
-    // in the output (i.e. no rollbacks on early exists)
     pub fn next_move_optimized(
         &self,
         assumptions: impl Fn(BasisElemId, VarId) -> Assumption,
@@ -193,6 +189,104 @@ impl Formula {
             }
             Assumption::True => Some(Rc::new([])),
             Assumption::False => self.next_move(),
+        }
+    }
+}
+
+pub struct FormulaIter {
+    has_next: bool,
+    inner: FormulaIterInner,
+}
+
+impl FormulaIter {
+    pub fn new(f: &Formula) -> Self {
+        fn new_inner(f: &Formula) -> FormulaIterInner {
+            match *f {
+                Formula::Atom(b, i) => FormulaIterInner::Atom(b, i),
+                Formula::And(ref children) => {
+                    FormulaIterInner::And(children.iter().map(new_inner).collect())
+                }
+                Formula::Or(ref children) => {
+                    FormulaIterInner::Or(children.iter().map(new_inner).collect(), 0)
+                }
+            }
+        }
+
+        let has_next = !f.is_false();
+        let inner = new_inner(f);
+        Self { has_next, inner }
+    }
+
+    // TODO: Need way to permanently apply assumption to a FormulaIter
+}
+
+impl Iterator for FormulaIter {
+    type Item = Rc<[(BasisElemId, VarId)]>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.has_next {
+            return None;
+        }
+        let value = self.inner.current();
+        self.has_next = self.inner.move_next();
+        Some(value)
+    }
+}
+
+enum FormulaIterInner {
+    Atom(BasisElemId, VarId),
+    And(Vec<FormulaIterInner>),
+    Or(Vec<FormulaIterInner>, usize),
+}
+
+impl FormulaIterInner {
+    fn current(&self) -> Rc<[(BasisElemId, VarId)]> {
+        fn current_inner(iter: &FormulaIterInner, out: &mut impl FnMut(BasisElemId, VarId)) {
+            match *iter {
+                FormulaIterInner::Atom(b, i) => _ = out(b, i),
+                FormulaIterInner::And(ref iters) => {
+                    iters.iter().for_each(|iter| current_inner(iter, out))
+                }
+                FormulaIterInner::Or(ref iters, pos) => current_inner(&iters[pos], out),
+            }
+        }
+
+        let mut seen = HashSet::new();
+        let mut out = Vec::new();
+        current_inner(self, &mut |b, i| {
+            if seen.insert((b, i)) {
+                out.push((b, i))
+            }
+        });
+
+        // TODO: which is the best order?
+        // Sorting because this needs to be normalized.
+        out.sort_unstable_by_key(|&(b, i)| (i, b));
+
+        out.into()
+    }
+
+    fn move_next(&mut self) -> bool {
+        match self {
+            FormulaIterInner::Atom(_, _) => false,
+            FormulaIterInner::And(iters) => {
+                for iter in iters.iter_mut().rev() {
+                    if iter.move_next() {
+                        return true;
+                    }
+                }
+                false
+            }
+            FormulaIterInner::Or(iters, pos) => {
+                for iter in &mut iters[*pos..] {
+                    if iter.move_next() {
+                        return true;
+                    }
+                    *pos += 1;
+                }
+                *pos = 0;
+                false
+            }
         }
     }
 }
