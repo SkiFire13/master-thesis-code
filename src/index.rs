@@ -90,11 +90,13 @@ pub struct IndexedSet<I, T> {
     _marker: PhantomData<I>,
 }
 
-impl<I, T> IndexedSet<I, T> {
-    pub fn new() -> Self {
-        Self { set: indexmap::IndexSet::new(), _marker: PhantomData }
+impl<I, T> Default for IndexedSet<I, T> {
+    fn default() -> Self {
+        Self { set: Default::default(), _marker: Default::default() }
     }
+}
 
+impl<I, T> IndexedSet<I, T> {
     pub fn insert_full(&mut self, value: T) -> (I, bool)
     where
         I: AsIndex,

@@ -45,7 +45,7 @@ pub enum WinState {
 }
 
 // Group of informations for a player nodes
-pub struct NodesData<I: AsIndex, P, M, O> {
+pub struct NodesData<I, P, M, O> {
     // Deduplicates positions and maps them to a numeric id.
     pub pos: IndexedSet<I, P>,
     // Map from the player nodes' ids to the global ids.
@@ -82,52 +82,18 @@ pub struct Game {
 
 impl Game {
     pub fn new(b: BasisElemId, i: VarId, formulas: EqsFormulas) -> Self {
-        let init = P0Pos { b, i };
-        let init_moves = init.moves(&formulas);
-
-        let mut var_to_p0 = IndexedVec::from(vec![Vec::new(); formulas.var_count()]);
-        var_to_p0[i].push(NodeP0Id::INIT);
-
-        Self {
+        let var_count = formulas.var_count();
+        let mut game = Self {
             formulas,
+            p0: NodesData::default(),
+            p1: NodesData::default(),
+            nodes: IndexedVec::from(vec![NodeKind::W0, NodeKind::L0, NodeKind::W1, NodeKind::L1]),
+            var_to_p0: IndexedVec::from(vec![Vec::new(); var_count]),
+        };
 
-            // p0 initially contains only (b, i) and related data
-            p0: NodesData {
-                pos: IndexedSet::from([init]),
-                moves: IndexedVec::from([init_moves]),
-                node_ids: IndexedVec::from([NodeId::INIT]),
-                preds: IndexedVec::from([Set::new()]),
-                succs: IndexedVec::from([Set::new()]),
-                escaping: Set::from([NodeP0Id::INIT]),
-                win: IndexedVec::from([WinState::Unknown]),
-                w0: Vec::new(),
-                w1: Vec::new(),
-            },
+        game.insert_p0(P0Pos { b, i });
 
-            // p1 initially is empty
-            p1: NodesData {
-                pos: IndexedSet::new(),
-                moves: IndexedVec::new(),
-                node_ids: IndexedVec::new(),
-                preds: IndexedVec::new(),
-                succs: IndexedVec::new(),
-                escaping: Set::new(),
-                win: IndexedVec::new(),
-                w0: Vec::new(),
-                w1: Vec::new(),
-            },
-
-            // Nodes contains the extra dummy nodes and the initial (b, i)
-            nodes: IndexedVec::from(vec![
-                NodeKind::W0,
-                NodeKind::L0,
-                NodeKind::W1,
-                NodeKind::L1,
-                NodeKind::P0(NodeP0Id::INIT),
-            ]),
-
-            var_to_p0,
-        }
+        game
     }
 
     pub fn resolve(&self, n: NodeId) -> NodeKind {
@@ -213,60 +179,67 @@ impl Game {
 
     /// Inserts a p0 node given its predecessors, updating the sets of predecessors/successors
     /// Returns the id of the node and whether it already existed or not.
-    pub fn insert_p0(&mut self, pred: NodeP1Id, pos: P0Pos) -> Inserted<NodeP0Id> {
+    pub fn insert_p0(&mut self, pos: P0Pos) -> Inserted<NodeP0Id> {
         let (n, is_new) = self.p0.pos.insert_full(pos);
 
+        if !is_new {
+            return Inserted::Existing(n);
+        }
+
         // If the node is new we need to setup its slot in the various IndexVecs
-        if is_new {
-            self.p0.node_ids.push(self.nodes.push(NodeKind::P0(n)));
-            self.p0.moves.push(pos.moves(&self.formulas));
-            self.p0.preds.push(Set::new());
-            self.p0.succs.push(Set::new());
-            self.p0.escaping.insert(n);
-            self.p0.win.push(WinState::Unknown);
+        self.p0.node_ids.push(self.nodes.push(NodeKind::P0(n)));
+        self.p0.moves.push(pos.moves(&self.formulas));
+        self.p0.preds.push(Set::new());
+        self.p0.succs.push(Set::new());
+        self.p0.escaping.insert(n);
+        self.p0.win.push(WinState::Unknown);
 
-            self.var_to_p0[pos.i].push(n);
-        }
+        self.var_to_p0[pos.i].push(n);
 
-        // Always set predecessors/successors
-        self.p0.preds[n].insert(pred);
-        self.p1.succs[pred].insert(n);
-
-        match is_new {
-            true => Inserted::New(n),
-            false => Inserted::Existing(n),
-        }
+        Inserted::New(n)
     }
 
     /// Inserts a p1 node given its predecessors, updating the sets of predecessors/successors
     /// Returns the id of the node and whether it already existed or not.
-    pub fn insert_p1(&mut self, pred: NodeP0Id, pos: P1Pos) -> Inserted<NodeP1Id> {
+    pub fn insert_p1(&mut self, pos: P1Pos) -> Inserted<NodeP1Id> {
         let (n, is_new) = self.p1.pos.insert_full(pos.clone());
 
-        // If the node is new we need to setup its slot in the various IndexVecs
-        if is_new {
-            self.p1.node_ids.push(self.nodes.push(NodeKind::P1(n)));
-            self.p1.moves.push(pos.moves());
-            self.p1.preds.push(Set::new());
-            self.p1.succs.push(Set::new());
-            self.p1.escaping.insert(n);
-            self.p1.win.push(WinState::Unknown);
+        if !is_new {
+            return Inserted::Existing(n);
         }
 
-        // Always set predecessors/successors
-        self.p0.succs[pred].insert(n);
-        self.p1.preds[n].insert(pred);
+        self.p1.node_ids.push(self.nodes.push(NodeKind::P1(n)));
+        self.p1.moves.push(pos.moves());
+        self.p1.preds.push(Set::new());
+        self.p1.succs.push(Set::new());
+        self.p1.escaping.insert(n);
+        self.p1.win.push(WinState::Unknown);
 
-        match is_new {
-            true => Inserted::New(n),
-            false => Inserted::Existing(n),
-        }
+        Inserted::New(n)
+    }
+
+    pub fn insert_p1_to_p0_edge(&mut self, pred: NodeP1Id, succ: NodeP0Id) {
+        self.p0.preds[succ].insert(pred);
+        self.p1.succs[pred].insert(succ);
+    }
+
+    pub fn insert_p0_to_p1_edge(&mut self, pred: NodeP0Id, succ: NodeP1Id) {
+        self.p1.preds[succ].insert(pred);
+        self.p0.succs[pred].insert(succ);
     }
 }
 
 pub enum Inserted<I> {
     New(I),
     Existing(I),
+}
+
+impl<I: Copy> Inserted<I> {
+    pub fn id(&self) -> I {
+        match *self {
+            Self::New(i) | Self::Existing(i) => i,
+        }
+    }
 }
 
 pub struct GameStrategy {
@@ -331,4 +304,20 @@ pub enum Reward {
     P1(Reverse<Relevance>),
     Neutral,
     P0(Relevance),
+}
+
+impl<I, P, M, O> Default for NodesData<I, P, M, O> {
+    fn default() -> Self {
+        Self {
+            pos: Default::default(),
+            node_ids: Default::default(),
+            moves: Default::default(),
+            preds: Default::default(),
+            succs: Default::default(),
+            escaping: Default::default(),
+            win: Default::default(),
+            w0: Default::default(),
+            w1: Default::default(),
+        }
+    }
 }

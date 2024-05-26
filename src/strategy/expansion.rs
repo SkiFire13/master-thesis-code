@@ -60,12 +60,15 @@ fn e2(
             // TODO: use profiles to avoid non-improving moves.
             _ = profiles;
 
-            let Some(mov) = game.p0.moves[n].next() else {
+            let Some(pos) = game.p0.moves[n].next() else {
                 game.p0.escaping.remove(&n);
                 return;
             };
 
-            if let Inserted::New(p1) = game.insert_p1(n, mov) {
+            let inserted = game.insert_p1(pos);
+            game.insert_p0_to_p1_edge(n, inserted.id());
+
+            if let Inserted::New(p1) = inserted {
                 add(game.p1.node_ids[p1])
             }
         }
@@ -87,13 +90,19 @@ fn e2(
                     return;
                 };
 
-                if let Inserted::New(p0) = game.insert_p0(n, pos) {
+                let inserted = game.insert_p0(pos);
+                game.insert_p1_to_p0_edge(n, inserted.id());
+
+                if let Inserted::New(p0) = inserted {
                     add(game.p0.node_ids[p0]);
                 }
             } else {
                 // Asymmetric version: iterate over all remaining moves
                 for pos in std::mem::take(&mut game.p1.moves[n]) {
-                    if let Inserted::New(p0) = game.insert_p0(n, pos) {
+                    let inserted = game.insert_p0(pos);
+                    game.insert_p1_to_p0_edge(n, inserted.id());
+
+                    if let Inserted::New(p0) = inserted {
                         add(game.p0.node_ids[p0]);
                     }
                 }
