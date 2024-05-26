@@ -13,6 +13,10 @@ pub struct PlayProfile {
 }
 
 impl PlayProfile {
+    pub fn winning(&self, gr: &impl GetRelevance) -> Player {
+        gr.relevance_of(self.most_relevant).player()
+    }
+
     fn rewards_before<'a>(
         &'a self,
         gr: &'a impl GetRelevance,
@@ -36,7 +40,7 @@ impl PlayProfile {
             || Iterator::cmp(self.rewards_before(gr), that.rewards_before(gr));
 
         // Compare the number of nodes visited before most relevant vertex of the loop
-        let cmp_count_before = || match gr.relevance_of(self.most_relevant).player() {
+        let cmp_count_before = || match self.winning(gr) {
             // If P0 is winning a shorter path is better (order is reversed, less is greater).
             Player::P0 => Ord::cmp(&self.count_before, &that.count_before).reverse(),
             // If P0 is losing a longer path is better (order is normal).

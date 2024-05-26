@@ -133,7 +133,7 @@ impl<I: AsIndex, T> Index<I> for IndexedSet<I, T> {
     }
 }
 
-pub trait AsIndex {
+pub trait AsIndex: Copy {
     fn to_usize(&self) -> usize;
     fn from_usize(index: usize) -> Self;
 }

@@ -26,10 +26,7 @@ pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
 }
 
 fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeId> {
-    let init_node = NodeId::INIT;
-    let relevant_node = profiles[init_node].most_relevant;
-
-    match game.relevance_of(relevant_node).player() {
+    match profiles[NodeId::INIT].winning(game) {
         Player::P0 => {
             let p1 = game.p1.escaping.first().copied().unwrap();
             let n = game.p1.node_ids[p1];
