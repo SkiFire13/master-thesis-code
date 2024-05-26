@@ -97,16 +97,12 @@ impl Formula {
                 Assumption::True => Formula::TRUE,
                 Assumption::False => Formula::FALSE,
             },
-            Formula::And(children) => simplify_and(
-                children
-                    .into_iter()
-                    .map(|f| f.apply_assumptions(&assumptions)),
-            ),
-            Formula::Or(children) => simplify_or(
-                children
-                    .into_iter()
-                    .map(|f| f.apply_assumptions(assumptions)),
-            ),
+            Formula::And(children) => {
+                simplify_and(children.into_iter().map(|f| f.apply_assumptions(&assumptions)))
+            }
+            Formula::Or(children) => {
+                simplify_or(children.into_iter().map(|f| f.apply_assumptions(assumptions)))
+            }
         }
     }
 
@@ -234,9 +230,7 @@ impl Formula {
                 let mut out = out.into_iter().collect::<Rc<[_]>>();
                 // TODO: which is the best order?
                 // Sorting because this needs to be normalized.
-                Rc::get_mut(&mut out)
-                    .unwrap()
-                    .sort_unstable_by_key(|&(b, i)| (i, b));
+                Rc::get_mut(&mut out).unwrap().sort_unstable_by_key(|&(b, i)| (i, b));
                 Some(out)
             }
             Assumption::True => Some(Rc::new([])),
@@ -371,14 +365,11 @@ mod tests {
         match *f {
             Formula::Atom(b, i) => vec![vec![(b, i)]],
             Formula::And(ref children) => {
-                children
-                    .iter()
-                    .map(naive_moves)
-                    .fold(vec![Vec::new()], |ms1, ms2| {
-                        ms1.iter()
-                            .flat_map(|m1| ms2.iter().map(|m2| [&m1[..], &m2[..]].concat()))
-                            .collect()
-                    })
+                children.iter().map(naive_moves).fold(vec![Vec::new()], |ms1, ms2| {
+                    ms1.iter()
+                        .flat_map(|m1| ms2.iter().map(|m2| [&m1[..], &m2[..]].concat()))
+                        .collect()
+                })
             }
             Formula::Or(ref children) => children.iter().flat_map(naive_moves).collect(),
         }

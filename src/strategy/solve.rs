@@ -53,16 +53,10 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
 }
 
 fn initial_play_profiles() -> IndexedVec<NodeId, PlayProfile> {
-    let w0 = PlayProfile {
-        most_relevant: NodeId::W0,
-        relevant_before: Vec::new(),
-        count_before: 0,
-    };
-    let w1 = PlayProfile {
-        most_relevant: NodeId::W1,
-        relevant_before: Vec::new(),
-        count_before: 0,
-    };
+    let w0 =
+        PlayProfile { most_relevant: NodeId::W0, relevant_before: Vec::new(), count_before: 0 };
+    let w1 =
+        PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 0 };
 
     IndexedVec::from(vec![
         // W0

@@ -1,1 +1,4 @@
-struct_lit_width = 50
+struct_lit_width = 80
+single_line_if_else_max_width = 80
+single_line_let_else_max_width = 80
+use_small_heuristics = "Off"

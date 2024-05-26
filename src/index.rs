@@ -37,19 +37,13 @@ impl<I: AsIndex, T> IndexedVec<I, T> {
     pub fn enumerate(
         &self,
     ) -> impl Iterator<Item = (I, &T)> + DoubleEndedIterator + ExactSizeIterator {
-        self.vec
-            .iter()
-            .enumerate()
-            .map(|(i, t)| (I::from_usize(i), t))
+        self.vec.iter().enumerate().map(|(i, t)| (I::from_usize(i), t))
     }
 
     pub fn enumerate_mut(
         &mut self,
     ) -> impl Iterator<Item = (I, &mut T)> + DoubleEndedIterator + ExactSizeIterator {
-        self.vec
-            .iter_mut()
-            .enumerate()
-            .map(|(i, t)| (I::from_usize(i), t))
+        self.vec.iter_mut().enumerate().map(|(i, t)| (I::from_usize(i), t))
     }
 }
 
@@ -98,10 +92,16 @@ pub struct IndexedSet<I, T> {
 
 impl<I, T> IndexedSet<I, T> {
     pub fn new() -> Self {
-        Self {
-            set: indexmap::IndexSet::new(),
-            _marker: PhantomData,
-        }
+        Self { set: indexmap::IndexSet::new(), _marker: PhantomData }
+    }
+
+    pub fn insert_full(&mut self, value: T) -> (I, bool)
+    where
+        I: AsIndex,
+        T: Hash + Eq,
+    {
+        let (idx, is_new) = self.set.insert_full(value);
+        (I::from_usize(idx), is_new)
     }
 }
 

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::index::IndexedVec;
 use crate::strategy::game::{NodeId, Player};
 
-use super::game::{Game, NodeKind, WinState};
+use super::game::{Game, Inserted, NodeKind, WinState};
 use super::improvement::PlayProfile;
 
 pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
@@ -65,8 +65,7 @@ fn e2(
                 return;
             };
 
-            let (p1, is_new) = game.insert_p1(n, mov);
-            if is_new {
+            if let Inserted::New(p1) = game.insert_p1(n, mov) {
                 add(game.p1.node_ids[p1])
             }
         }
@@ -88,15 +87,13 @@ fn e2(
                     return;
                 };
 
-                let (p0, is_new) = game.insert_p0(n, pos);
-                if is_new {
+                if let Inserted::New(p0) = game.insert_p0(n, pos) {
                     add(game.p0.node_ids[p0]);
                 }
             } else {
                 // Asymmetric version: iterate over all remaining moves
                 for pos in std::mem::take(&mut game.p1.moves[n]) {
-                    let (p0, is_new) = game.insert_p0(n, pos);
-                    if is_new {
+                    if let Inserted::New(p0) = game.insert_p0(n, pos) {
                         add(game.p0.node_ids[p0]);
                     }
                 }

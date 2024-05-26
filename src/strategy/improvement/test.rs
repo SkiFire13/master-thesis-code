@@ -63,10 +63,7 @@ impl Strategy for TestStrategy {
     }
 
     fn get_inverse(&self, n: NodeId, _: &Self::Graph) -> impl Iterator<Item = NodeId> {
-        self.inverse
-            .get(&n)
-            .into_iter()
-            .flat_map(|preds| preds.iter().copied())
+        self.inverse.get(&n).into_iter().flat_map(|preds| preds.iter().copied())
     }
 }
 
@@ -84,15 +81,11 @@ fn parse_test(test: &str) -> TestGame {
             "1" => _ = game.players.push(Player::P1),
             _ => panic!(),
         }
-        let successors = successors
-            .split(',')
-            .map(|i| NodeId(i.parse().unwrap()))
-            .collect();
+        let successors = successors.split(',').map(|i| NodeId(i.parse().unwrap())).collect();
         game.successors.push(successors);
     }
 
-    game.predecessors
-        .resize_with(game.successors.len(), Vec::new);
+    game.predecessors.resize_with(game.successors.len(), Vec::new);
     for (n, succ) in game.successors.enumerate() {
         for &m in succ {
             game.predecessors[m].push(n);
@@ -100,8 +93,7 @@ fn parse_test(test: &str) -> TestGame {
     }
 
     game.nodes_by_reward = (0..game.relevance.len()).map(NodeId).collect::<Vec<_>>();
-    game.nodes_by_reward
-        .sort_unstable_by_key(|&n| Relevance(game.relevance[n], n).reward());
+    game.nodes_by_reward.sort_unstable_by_key(|&n| Relevance(game.relevance[n], n).reward());
 
     game
 }

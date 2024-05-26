@@ -21,10 +21,7 @@ impl PlayProfile {
         &'a self,
         gr: &'a impl GetRelevance,
     ) -> impl Iterator<Item = Reward> + 'a {
-        self.relevant_before
-            .iter()
-            .map(move |&u| gr.reward_of(u))
-            .chain([Reward::Neutral])
+        self.relevant_before.iter().map(move |&u| gr.reward_of(u)).chain([Reward::Neutral])
     }
 
     pub fn cmp<'a>(&'a self, that: &'a PlayProfile, gr: &impl GetRelevance) -> Ordering {
@@ -47,9 +44,7 @@ impl PlayProfile {
             Player::P1 => Ord::cmp(&self.count_before, &that.count_before),
         };
 
-        cmp_most_relevant()
-            .then_with(cmp_relevant_before)
-            .then_with(cmp_count_before)
+        cmp_most_relevant().then_with(cmp_relevant_before).then_with(cmp_count_before)
     }
 }
 

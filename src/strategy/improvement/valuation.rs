@@ -43,10 +43,7 @@ impl<'a, S: Strategy> Graph<'a, S> {
 
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         let p0_preds = self.strategy.get_inverse(n, self.game);
-        let p1_preds = self
-            .game
-            .predecessors_of(n)
-            .filter(|&n| self.game.player(n) == Player::P1);
+        let p1_preds = self.game.predecessors_of(n).filter(|&n| self.game.player(n) == Player::P1);
         p0_preds.chain(p1_preds)
     }
 
@@ -144,10 +141,7 @@ impl<'a, S: Strategy> RestrictedGraph<'a, S> {
     fn successors_count_of(&self, v: NodeId) -> usize {
         // Take all successors and consider only those in the original K.
         // Then remove from the count those edges that were removed.
-        self.base
-            .successors_of(v)
-            .filter(|u| self.k_set.contains(u))
-            .count()
+        self.base.successors_of(v).filter(|u| self.k_set.contains(u)).count()
             - self.removed_successors_count.get(&v).unwrap_or(&0)
     }
 
@@ -209,9 +203,7 @@ fn subevaluation(
     // Extra: sort the nodes in the profile by their relevance, as that will help
     // when comparing profiles.
     for &v in &*graph.k_nodes {
-        profiles[v]
-            .relevant_before
-            .sort_by_key(|&n| Reverse(graph.relevance_of(n)));
+        profiles[v].relevant_before.sort_by_key(|&n| Reverse(graph.relevance_of(n)));
     }
 
     // Depending on the player favoured by w maximize or minimize the distances.
@@ -293,11 +285,8 @@ fn set_maximal_distances(
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
     final_strategy: &mut IndexedVec<NodeId, NodeId>,
 ) {
-    let mut remaining_successors = graph
-        .k_nodes
-        .iter()
-        .map(|&v| (v, graph.successors_count_of(v)))
-        .collect::<NodeMap<_>>();
+    let mut remaining_successors =
+        graph.k_nodes.iter().map(|&v| (v, graph.successors_count_of(v))).collect::<NodeMap<_>>();
     let mut queue = VecDeque::from([(w, graph.successors_of(w).next().unwrap(), 0)]);
 
     while let Some((v, succ, d)) = queue.pop_front() {

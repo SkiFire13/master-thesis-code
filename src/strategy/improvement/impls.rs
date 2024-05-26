@@ -44,10 +44,7 @@ impl Strategy for GameStrategy {
         self.direct
             .enumerate()
             .map(|(n0, &n1)| {
-                (
-                    game.p0.node_ids[n0],
-                    n1.map_or(NodeId::W1, |n1| game.p1.node_ids[n1]),
-                )
+                (game.p0.node_ids[n0], n1.map_or(NodeId::W1, |n1| game.p1.node_ids[n1]))
             })
             .chain([(NodeId::L0, NodeId::W1), (NodeId::W0, NodeId::L1)])
     }

@@ -14,11 +14,8 @@ pub fn update_w01(
     let p1_escaping = game.p1.escaping.iter().map(|&n| game.p1.node_ids[n]);
 
     // Find nodes that are transitively escaping, assuming the optimal strategy for the opponent.
-    let escaping = find_escaping(
-        p0_escaping.chain(p1_escaping),
-        |n| game.predecessors_of(n),
-        strategy,
-    );
+    let escaping =
+        find_escaping(p0_escaping.chain(p1_escaping), |n| game.predecessors_of(n), strategy);
 
     // TODO: Maybe avoid iterating over all nodes?
     for (p0, &n0) in game.p0.node_ids.enumerate() {

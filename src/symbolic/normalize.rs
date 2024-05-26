@@ -4,19 +4,13 @@ use super::eq::{Expr, FixEq, FixType, VarId};
 
 pub fn normalize_sys(eqs: &[FixEq]) -> (IndexedVec<VarId, FixEq>, IndexedVec<VarId, VarId>) {
     let mut new_eqs = IndexedVec::new();
-    let vars = eqs
-        .iter()
-        .map(|eq| normalize_expr(&eq.expr, eq.fix_type, &mut new_eqs))
-        .collect();
+    let vars = eqs.iter().map(|eq| normalize_expr(&eq.expr, eq.fix_type, &mut new_eqs)).collect();
     (new_eqs, vars)
 }
 
 pub fn normalize_expr(expr: &Expr, fix_type: FixType, out: &mut IndexedVec<VarId, FixEq>) -> VarId {
     let normalize_many = |exprs: &[Expr], out: &mut IndexedVec<VarId, FixEq>| {
-        exprs
-            .iter()
-            .map(|expr| Expr::Var(normalize_expr(expr, fix_type, out)))
-            .collect()
+        exprs.iter().map(|expr| Expr::Var(normalize_expr(expr, fix_type, out))).collect()
     };
 
     match expr {

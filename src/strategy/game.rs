@@ -208,60 +208,65 @@ impl Game {
         // These have 2 * var_count + 2 reward
         let w0_nodes = [NodeId::W0, NodeId::L1].into_iter();
 
-        w1_nodes
-            .chain(p0_f1_nodes)
-            .chain(p1_nodes)
-            .chain(p0_f0_nodes)
-            .chain(w0_nodes)
+        w1_nodes.chain(p0_f1_nodes).chain(p1_nodes).chain(p0_f0_nodes).chain(w0_nodes)
     }
 
     /// Inserts a p0 node given its predecessors, updating the sets of predecessors/successors
     /// Returns the id of the node and whether it already existed or not.
-    pub fn insert_p0(&mut self, pred: NodeP1Id, pos: P0Pos) -> (NodeP0Id, bool) {
-        let (idx, is_new) = self.p0.pos.insert_full(pos);
-        let p0id = NodeP0Id::from_usize(idx);
+    pub fn insert_p0(&mut self, pred: NodeP1Id, pos: P0Pos) -> Inserted<NodeP0Id> {
+        let (n, is_new) = self.p0.pos.insert_full(pos);
 
         // If the node is new we need to setup its slot in the various IndexVecs
         if is_new {
-            self.p0.node_ids.push(self.nodes.push(NodeKind::P0(p0id)));
+            self.p0.node_ids.push(self.nodes.push(NodeKind::P0(n)));
             self.p0.moves.push(pos.moves(&self.formulas));
             self.p0.preds.push(Set::new());
             self.p0.succs.push(Set::new());
-            self.p0.escaping.insert(p0id);
+            self.p0.escaping.insert(n);
             self.p0.win.push(WinState::Unknown);
 
-            self.var_to_p0[pos.i].push(p0id);
+            self.var_to_p0[pos.i].push(n);
         }
 
         // Always set predecessors/successors
-        self.p0.preds[p0id].insert(pred);
-        self.p1.succs[pred].insert(p0id);
+        self.p0.preds[n].insert(pred);
+        self.p1.succs[pred].insert(n);
 
-        (p0id, is_new)
+        match is_new {
+            true => Inserted::New(n),
+            false => Inserted::Existing(n),
+        }
     }
 
     /// Inserts a p1 node given its predecessors, updating the sets of predecessors/successors
     /// Returns the id of the node and whether it already existed or not.
-    pub fn insert_p1(&mut self, pred: NodeP0Id, pos: P1Pos) -> (NodeP1Id, bool) {
-        let (idx, is_new) = self.p1.pos.insert_full(pos.clone());
-        let p1id = NodeP1Id::from_usize(idx);
+    pub fn insert_p1(&mut self, pred: NodeP0Id, pos: P1Pos) -> Inserted<NodeP1Id> {
+        let (n, is_new) = self.p1.pos.insert_full(pos.clone());
 
         // If the node is new we need to setup its slot in the various IndexVecs
         if is_new {
-            self.p1.node_ids.push(self.nodes.push(NodeKind::P1(p1id)));
+            self.p1.node_ids.push(self.nodes.push(NodeKind::P1(n)));
             self.p1.moves.push(pos.moves());
             self.p1.preds.push(Set::new());
             self.p1.succs.push(Set::new());
-            self.p1.escaping.insert(p1id);
+            self.p1.escaping.insert(n);
             self.p1.win.push(WinState::Unknown);
         }
 
         // Always set predecessors/successors
-        self.p0.succs[pred].insert(p1id);
-        self.p1.preds[p1id].insert(pred);
+        self.p0.succs[pred].insert(n);
+        self.p1.preds[n].insert(pred);
 
-        (p1id, is_new)
+        match is_new {
+            true => Inserted::New(n),
+            false => Inserted::Existing(n),
+        }
     }
+}
+
+pub enum Inserted<I> {
+    New(I),
+    Existing(I),
 }
 
 pub struct GameStrategy {
@@ -273,11 +278,7 @@ pub struct GameStrategy {
 
 impl GameStrategy {
     pub fn new() -> Self {
-        Self {
-            direct: IndexedVec::new(),
-            inverse: IndexedVec::new(),
-            inverse_w1: Set::new(),
-        }
+        Self { direct: IndexedVec::new(), inverse: IndexedVec::new(), inverse_w1: Set::new() }
     }
 
     pub fn expand(&mut self, game: &Game) {
