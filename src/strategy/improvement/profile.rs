@@ -24,7 +24,7 @@ impl PlayProfile {
         self.relevant_before.iter().map(move |&u| gr.reward_of(u)).chain([Reward::Neutral])
     }
 
-    pub fn cmp<'a>(&'a self, that: &'a PlayProfile, gr: &impl GetRelevance) -> Ordering {
+    pub fn cmp(&self, that: &PlayProfile, gr: &impl GetRelevance) -> Ordering {
         // Compare the most relevant vertex of the cycle
         let cmp_most_relevant = || {
             let this_rew = gr.reward_of(self.most_relevant);

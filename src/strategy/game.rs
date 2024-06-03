@@ -38,6 +38,7 @@ impl NodeP0Id {
     pub const INIT: NodeP0Id = NodeP0Id(0);
 }
 
+#[derive(PartialEq, Eq)]
 pub enum WinState {
     Unknown,
     Win0,
@@ -100,13 +101,13 @@ impl Game {
         self.nodes[n]
     }
 
-    pub fn relevance_of(&self, n: NodeId) -> Relevance {
-        let coloring = match self.resolve(n) {
-            // High coloring (higher than P0 nodes) in favour of P1
+    pub fn relevance_of(&self, node: NodeId) -> Relevance {
+        let priority = match self.resolve(node) {
+            // High priority (higher than P0 nodes) in favour of P1
             NodeKind::L0 | NodeKind::W1 => 2 * self.formulas.var_count() + 1,
-            // High coloring (higher than P0 nodes) in favour of P0
+            // High priority (higher than P0 nodes) in favour of P0
             NodeKind::W0 | NodeKind::L1 => 2 * self.formulas.var_count() + 2,
-            // Coloring proportional to the equation/variable index, going from 1 to 2 * var_count
+            // Priority proportional to the equation/variable index, going from 1 to 2 * var_count
             NodeKind::P0(n) => {
                 let i = self.p0.pos[n].i;
                 let fix_type = self.formulas.eq_fix_types[i];
@@ -117,7 +118,7 @@ impl Game {
             // This is irrelevant
             NodeKind::P1(_) => 0,
         };
-        Relevance(coloring, n)
+        Relevance { priority, node }
     }
 
     pub fn formula_of(&self, n: NodeP0Id) -> &Formula {
@@ -278,11 +279,16 @@ pub enum Player {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Relevance(pub usize, pub NodeId);
+pub struct Relevance {
+    // Actual priority
+    pub priority: usize,
+    // Used as tiebreaker
+    pub node: NodeId,
+}
 
 impl Relevance {
     pub fn player(self) -> Player {
-        match self.0 % 2 {
+        match self.priority % 2 {
             0 => Player::P0,
             _ => Player::P1,
         }

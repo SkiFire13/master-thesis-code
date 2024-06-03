@@ -17,6 +17,8 @@ pub fn update_w01(
     let escaping =
         find_escaping(p0_escaping.chain(p1_escaping), |n| game.predecessors_of(n), strategy);
 
+    // TODO: make these loops generic?
+
     // TODO: Maybe avoid iterating over all nodes?
     for (p0, &n0) in game.p0.node_ids.enumerate() {
         if profiles[n0].winning(game) == Player::P1 && !escaping.contains(&n0) {
@@ -24,8 +26,12 @@ pub fn update_w01(
             game.p0.w1.push(p0);
 
             for &p1 in &game.p0.preds[p0] {
-                game.p1.win[p1] = WinState::Win1;
-                game.p1.w1.push(p1);
+                // Avoid pushing to w1 twice
+                if game.p1.win[p1] == WinState::Unknown {
+                    game.p1.win[p1] = WinState::Win1;
+                    game.p1.w1.push(p1);
+                    // TODO: remove successors of p1
+                }
             }
 
             // Optimization: remove successors so it's less work to see that this node is losing.
@@ -41,8 +47,12 @@ pub fn update_w01(
             game.p1.w0.push(p1);
 
             for &p0 in &game.p1.preds[p1] {
-                game.p0.win[p0] = WinState::Win0;
-                game.p0.w0.push(p0);
+                // Avoid pushing to w0 twice
+                if game.p0.win[p0] == WinState::Unknown {
+                    game.p0.win[p0] = WinState::Win0;
+                    game.p0.w0.push(p0);
+                    // TODO: remove successors of p0
+                }
             }
 
             for p0 in std::mem::take(&mut game.p1.succs[p1]) {

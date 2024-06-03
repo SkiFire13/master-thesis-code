@@ -54,20 +54,10 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
 
 fn initial_play_profiles() -> IndexedVec<NodeId, PlayProfile> {
     let w0 =
-        PlayProfile { most_relevant: NodeId::W0, relevant_before: Vec::new(), count_before: 0 };
+        || PlayProfile { most_relevant: NodeId::W0, relevant_before: Vec::new(), count_before: 0 };
     let w1 =
-        PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 0 };
+        || PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 0 };
 
-    IndexedVec::from(vec![
-        // W0
-        w0.clone(),
-        // L0
-        w1.clone(),
-        // W1
-        w1.clone(),
-        // L1
-        w0.clone(),
-        // INIT
-        w1.clone(),
-    ])
+    // Corresponding nodes are: W0, L0, W1, L1, INIT
+    IndexedVec::from(vec![w0(), w1(), w1(), w0(), w1()])
 }

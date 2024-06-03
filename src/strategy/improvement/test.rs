@@ -24,8 +24,8 @@ struct TestStrategy {
 }
 
 impl GetRelevance for TestGame {
-    fn relevance_of(&self, u: NodeId) -> Relevance {
-        Relevance(self.relevance[u], u)
+    fn relevance_of(&self, node: NodeId) -> Relevance {
+        Relevance { priority: self.relevance[node], node }
     }
 }
 
@@ -93,7 +93,8 @@ fn parse_test(test: &str) -> TestGame {
     }
 
     game.nodes_by_reward = (0..game.relevance.len()).map(NodeId).collect::<Vec<_>>();
-    game.nodes_by_reward.sort_unstable_by_key(|&n| Relevance(game.relevance[n], n).reward());
+    game.nodes_by_reward
+        .sort_unstable_by_key(|&node| Relevance { priority: game.relevance[node], node }.reward());
 
     game
 }

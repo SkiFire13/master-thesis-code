@@ -14,10 +14,8 @@ pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
     while !a.is_empty() {
         for v in a.drain(..) {
             e2(game, v, profiles, |n| {
-                // Make new_a unique
-                if seen.insert(n) {
-                    new_a.push(n);
-                }
+                debug_assert!(seen.insert(n));
+                new_a.push(n);
             });
         }
 
@@ -54,6 +52,7 @@ fn e2(
                 // and the node is winning for p1.
                 game.p0.win[n] = WinState::Win1;
                 game.p0.w1.push(n);
+                game.p0.escaping.remove(&n);
                 return;
             }
 
@@ -78,10 +77,13 @@ fn e2(
             if game.p1.pos[n].moves.is_empty() {
                 game.p1.win[n] = WinState::Win0;
                 game.p1.w0.push(n);
+                game.p1.escaping.remove(&n);
                 return;
             }
 
-            static SYMMETRIC: bool = true;
+            // TODO: Make this an input setting?
+            // Toggles symmetric and asymmetric algorithm
+            const SYMMETRIC: bool = true;
 
             if SYMMETRIC {
                 // Symmetric version: consider next position
