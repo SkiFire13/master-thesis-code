@@ -101,12 +101,12 @@ impl Game {
     }
 
     pub fn relevance_of(&self, n: NodeId) -> Relevance {
-        let rel = match self.resolve(n) {
-            // High relevance (higher than P0 nodes) in favour of P1
+        let coloring = match self.resolve(n) {
+            // High coloring (higher than P0 nodes) in favour of P1
             NodeKind::L0 | NodeKind::W1 => 2 * self.formulas.var_count() + 1,
-            // High relevance (higher than P0 nodes) in favour of P0
+            // High coloring (higher than P0 nodes) in favour of P0
             NodeKind::W0 | NodeKind::L1 => 2 * self.formulas.var_count() + 2,
-            // Relevance proportional to the variable index, going from 1 to 2 * var_count
+            // Coloring proportional to the equation/variable index, going from 1 to 2 * var_count
             NodeKind::P0(n) => {
                 let i = self.p0.pos[n].i;
                 let fix_type = self.formulas.eq_fix_types[i];
@@ -117,7 +117,7 @@ impl Game {
             // This is irrelevant
             NodeKind::P1(_) => 0,
         };
-        Relevance(rel, n)
+        Relevance(coloring, n)
     }
 
     pub fn formula_of(&self, n: NodeP0Id) -> &Formula {
