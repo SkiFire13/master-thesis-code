@@ -3,15 +3,15 @@ use chumsky::primitive::{any, end, just};
 use chumsky::text::{self, TextParser as _};
 use chumsky::Parser;
 
-#[derive(Clone)]
-pub struct State(pub usize);
+use crate::index::{new_index, IndexedSet, IndexedVec};
 
-#[derive(Clone)]
-pub struct Label(pub String);
+new_index!(pub index StateId);
+new_index!(pub index LabelId);
 
 pub struct Lts {
-    pub first_state: State,
-    pub transitions: Vec<Vec<(Label, State)>>,
+    pub first_state: StateId,
+    pub labels: IndexedSet<LabelId, String>,
+    pub transitions: IndexedVec<StateId, Vec<(LabelId, StateId)>>,
 }
 
 // aut_header        ::=  'des (' first_state ',' nr_of_transitions ',' nr_of_states ')'
@@ -27,27 +27,26 @@ pub fn parse_alt(source: &str) -> Result<Lts, Vec<Simple<char>>> {
     let number = text::int(10).map(|n: String| n.parse::<usize>().unwrap()).padded();
     let comma = just(',').padded();
     let newline = text::newline();
-    let state = number.map(State);
-    let label = any().repeated().collect().delimited_by(just('"'), just('"')).map(Label);
+    let state = number.map(StateId);
+    let label = any().repeated().collect::<String>().delimited_by(just('"'), just('"'));
 
-    let header_inner = state.then_ignore(comma).then(number).then_ignore(comma).then(number);
-    let header =
-        des.ignore_then(header_inner.delimited_by(just('('), just(')'))).then_ignore(newline);
+    let inner = state.then_ignore(comma).then(number).then_ignore(comma).then(number);
+    let header = des.ignore_then(inner.delimited_by(just('('), just(')'))).then_ignore(newline);
 
     let edge_inner = state.then_ignore(comma).then(label).then_ignore(comma).then(state);
-    let edge = edge_inner.delimited_by(just('('), just(')'));
-    let edges = edge.separated_by(newline);
+    let edges = edge_inner.delimited_by(just('('), just(')')).padded().separated_by(newline);
 
     let parser = header.boxed().then_with(|((first_state, trans_count), states_count)| {
         edges.exactly(trans_count).map(move |edges| {
-            let first_state = first_state.clone();
-            let mut transitions = vec![Vec::new(); states_count];
+            let mut labels = IndexedSet::default();
+            let mut transitions = IndexedVec::from(vec![Vec::new(); states_count]);
 
             for ((start_state, label), end_state) in edges {
-                transitions[start_state.0].push((label, end_state));
+                let (label_id, _) = labels.insert_full(label);
+                transitions[start_state].push((label_id, end_state));
             }
 
-            Lts { first_state, transitions }
+            Lts { first_state, labels, transitions }
         })
     });
 
