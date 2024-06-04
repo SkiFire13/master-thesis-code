@@ -53,7 +53,7 @@ fn e2(
                 // The formula is false so the successor is W1
                 // and the node is winning for p1.
                 game.p0.win[n] = WinState::Win1;
-                game.p0.w1.push(n);
+                game.p0.w1.insert(n);
                 game.p0.escaping.remove(&n);
                 return;
             }
@@ -78,7 +78,7 @@ fn e2(
             // and the node is winning for p0.
             if game.p1.pos[n].moves.is_empty() {
                 game.p1.win[n] = WinState::Win0;
-                game.p1.w0.push(n);
+                game.p1.w0.insert(n);
                 game.p1.escaping.remove(&n);
                 return;
             }

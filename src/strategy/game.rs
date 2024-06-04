@@ -61,10 +61,10 @@ pub struct NodesData<I, P, M, O> {
     pub escaping: Set<I>,
     // Which player definitely wins on this node
     pub win: IndexedVec<I, WinState>,
-    // List of this player's nodes where player 0 wins
-    pub w0: Vec<I>,
-    // List of this player's nodes where player 1 wins
-    pub w1: Vec<I>,
+    // Set of this player's nodes where player 0 wins
+    pub w0: Set<I>,
+    // Set of this player's nodes where player 1 wins
+    pub w1: Set<I>,
 }
 
 pub struct Game {
@@ -118,8 +118,6 @@ impl Game {
             NodeKind::P0(n) => {
                 let i = self.p0.pos[n].i;
                 let fix_type = self.formulas.eq_fix_types[i];
-                // TODO: Maybe optimize this to make it more compact?
-                // TODO: Is this Min vs Max correct?
                 2 * i.to_usize() + if fix_type == FixType::Max { 2 } else { 1 }
             }
             // This is irrelevant

@@ -23,13 +23,13 @@ pub fn update_w01(
     for (p0, &n0) in game.p0.node_ids.enumerate() {
         if profiles[n0].winning(game) == Player::P1 && !escaping.contains(&n0) {
             game.p0.win[p0] = WinState::Win1;
-            game.p0.w1.push(p0);
+            game.p0.w1.insert(p0);
 
             for &p1 in &game.p0.preds[p0] {
                 // Avoid pushing to w1 twice
                 if game.p1.win[p1] == WinState::Unknown {
                     game.p1.win[p1] = WinState::Win1;
-                    game.p1.w1.push(p1);
+                    game.p1.w1.insert(p1);
                     // TODO: remove successors of p1
                 }
             }
@@ -44,13 +44,13 @@ pub fn update_w01(
     for (p1, &n1) in game.p1.node_ids.enumerate() {
         if profiles[n1].winning(game) == Player::P0 && !escaping.contains(&n1) {
             game.p1.win[p1] = WinState::Win0;
-            game.p1.w0.push(p1);
+            game.p1.w0.insert(p1);
 
             for &p0 in &game.p1.preds[p1] {
                 // Avoid pushing to w0 twice
                 if game.p0.win[p0] == WinState::Unknown {
                     game.p0.win[p0] = WinState::Win0;
-                    game.p0.w0.push(p0);
+                    game.p0.w0.insert(p0);
                     // TODO: remove successors of p0
                 }
             }

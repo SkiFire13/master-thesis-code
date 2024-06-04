@@ -36,11 +36,8 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
         // Update definitely winning/losing nodes.
         update_w01(&mut game, &profiles, &final_strategy);
 
-        // TODO: make this much less expensive
         match () {
-            // The initial node is definitely winning
             _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,
-            // The initial node is definitely losing
             _ if game.p0.w1.contains(&NodeP0Id::INIT) => return false,
             _ => {}
         }
