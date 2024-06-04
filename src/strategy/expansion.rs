@@ -24,6 +24,8 @@ pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
 }
 
 fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeId> {
+    // TODO: This should select an element of the exterior, not one that can reach the exterior.
+    // In practice this shouldn't matter though.
     match profiles[NodeId::INIT].winning(game) {
         Player::P0 => {
             let p1 = game.p1.escaping.first().copied().unwrap();
