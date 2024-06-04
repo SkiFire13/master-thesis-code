@@ -56,24 +56,13 @@ impl Strategy for GameStrategy {
     }
 
     fn get_inverse(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
-        let kind = game.resolve(n);
-
-        // Predecessors given by the strategy
-        let p0 = match kind {
-            NodeKind::W1 => Left(&self.inverse_w1),
-            NodeKind::P1(n) => Left(&self.inverse[n]),
-            _ => Right([].into_iter()),
+        let map_p0 = |&n| game.p0.node_ids[n];
+        match game.resolve(n) {
+            NodeKind::L1 => Left([NodeId::W0].iter().copied()),
+            NodeKind::W1 => Right(Left(self.inverse_w1.iter().map(map_p0).chain([NodeId::L0]))),
+            NodeKind::P1(n) => Right(Right(self.inverse[n].iter().map(map_p0))),
+            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => Left([].iter().copied()),
         }
-        .map_left(|s| s.iter().map(|&n| game.p0.node_ids[n]));
-
-        // Predecessors of the special nodes (not included in the "stored" strategy)
-        let wl = match kind {
-            NodeKind::W1 => [NodeId::L0].iter().copied(),
-            NodeKind::L1 => [NodeId::W0].iter().copied(),
-            _ => [].iter().copied(),
-        };
-
-        p0.chain(wl)
     }
 }
 
