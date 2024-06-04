@@ -101,7 +101,7 @@ impl Game {
         self.nodes[n]
     }
 
-    pub fn controlling_player(&self, n: NodeId) -> Player {
+    pub fn player_of(&self, n: NodeId) -> Player {
         match self.resolve(n) {
             NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => Player::P0,
             NodeKind::L1 | NodeKind::W1 | NodeKind::P1(_) => Player::P1,

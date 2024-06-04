@@ -13,7 +13,7 @@ use super::{GetRelevance, PlayProfile};
 pub trait ValuationGraph: GetRelevance {
     fn node_count(&self) -> usize;
 
-    fn player(&self, n: NodeId) -> Player;
+    fn player_of(&self, n: NodeId) -> Player;
 
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
     fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
@@ -26,6 +26,18 @@ pub trait Strategy {
     fn iter(&self, graph: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)>;
     fn get_direct(&self, n: NodeId, graph: &Self::Graph) -> NodeId;
     fn get_inverse(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId>;
+
+    fn predecessors_of(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId> {
+        let p0_preds = self.get_inverse(n, graph);
+        let p1_preds = graph.predecessors_of(n).filter(|&n| graph.player_of(n) == Player::P1);
+        p0_preds.chain(p1_preds)
+    }
+    fn successors_of(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId> {
+        match graph.player_of(n) {
+            Player::P0 => Left(iter::once(self.get_direct(n, graph))),
+            Player::P1 => Right(graph.successors_of(n)),
+        }
+    }
 }
 
 struct Graph<'a, S: Strategy> {
@@ -34,17 +46,12 @@ struct Graph<'a, S: Strategy> {
 }
 
 impl<'a, S: Strategy> Graph<'a, S> {
-    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
-        match self.game.player(n) {
-            Player::P0 => Left(iter::once(self.strategy.get_direct(n, self.game))),
-            Player::P1 => Right(self.game.successors_of(n)),
-        }
+    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.strategy.predecessors_of(n, self.game)
     }
 
-    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        let p0_preds = self.strategy.get_inverse(n, self.game);
-        let p1_preds = self.game.predecessors_of(n).filter(|&n| self.game.player(n) == Player::P1);
-        p0_preds.chain(p1_preds)
+    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + 'a {
+        self.strategy.successors_of(n, self.game)
     }
 
     fn node_count(&self) -> usize {

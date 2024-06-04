@@ -17,8 +17,8 @@ impl ValuationGraph for Game {
         self.nodes.len()
     }
 
-    fn player(&self, n: NodeId) -> Player {
-        self.controlling_player(n)
+    fn player_of(&self, n: NodeId) -> Player {
+        self.player_of(n)
     }
 
     fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> {
@@ -58,10 +58,24 @@ impl Strategy for GameStrategy {
     fn get_inverse(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
         let map_p0 = |&n| game.p0.node_ids[n];
         match game.resolve(n) {
-            NodeKind::L1 => Left([NodeId::W0].iter().copied()),
-            NodeKind::W1 => Right(Left(self.inverse_w1.iter().map(map_p0).chain([NodeId::L0]))),
-            NodeKind::P1(n) => Right(Right(self.inverse[n].iter().map(map_p0))),
-            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => Left([].iter().copied()),
+            NodeKind::L1 => Left(Left([NodeId::W0].iter().copied())),
+            NodeKind::W1 => Left(Right(self.inverse_w1.iter().map(map_p0).chain([NodeId::L0]))),
+            NodeKind::P1(n) => Right(self.inverse[n].iter().map(map_p0)),
+            NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
+        }
+    }
+
+    fn predecessors_of(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
+        match game.player_of(n) {
+            Player::P0 => Left(game.predecessors_of(n)),
+            Player::P1 => Right(self.get_inverse(n, game)),
+        }
+    }
+
+    fn successors_of(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
+        match game.player_of(n) {
+            Player::P0 => Left([self.get_direct(n, game)].into_iter()),
+            Player::P1 => Right(game.successors_of(n)),
         }
     }
 }

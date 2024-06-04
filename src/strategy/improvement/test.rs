@@ -34,7 +34,7 @@ impl ValuationGraph for TestGame {
         self.players.len()
     }
 
-    fn player(&self, n: NodeId) -> Player {
+    fn player_of(&self, n: NodeId) -> Player {
         self.players[n]
     }
 
