@@ -1,17 +1,63 @@
 use std::collections::HashSet;
 
 use chumsky::error::Simple;
-use chumsky::primitive::{choice, end, just};
+use chumsky::primitive::{any, choice, end, just};
 use chumsky::recursive::recursive;
 use chumsky::text::TextParser as _;
 use chumsky::{text, Parser};
 
-use crate::index::{AsIndex, IndexedSet, IndexedVec};
+use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
 use crate::symbolic::compose::FunsFormulas;
 use crate::symbolic::eq::{Expr, FixEq, FixType, FunId, VarId};
 use crate::symbolic::formula::{BasisElemId, Formula};
 
-use super::ald_parser::{LabelId, Lts, StateId};
+new_index!(pub index StateId);
+new_index!(pub index LabelId);
+
+pub struct Lts {
+    pub first_state: StateId,
+    pub labels: IndexedSet<LabelId, String>,
+    pub transitions: IndexedVec<StateId, Vec<(LabelId, StateId)>>,
+}
+
+// aut_header        ::=  'des (' first_state ',' nr_of_transitions ',' nr_of_states ')'
+// first_state       ::=  number
+// nr_of_transitions ::=  number
+// nr_of_states      ::=  number
+// aut_edge    ::=  '(' start_state ',' label ',' end_state ')'
+// start_state ::=  number
+// label       ::=  '"' string '"'
+// end_state   ::=  number
+pub fn parse_alt(source: &str) -> Result<Lts, Vec<Simple<char>>> {
+    let des = just("des").padded();
+    let number = text::int(10).map(|n: String| n.parse::<usize>().unwrap()).padded();
+    let comma = just(',').padded();
+    let newline = text::newline();
+    let state = number.map(StateId);
+    let label = any().repeated().collect::<String>().delimited_by(just('"'), just('"'));
+
+    let inner = state.then_ignore(comma).then(number).then_ignore(comma).then(number);
+    let header = des.ignore_then(inner.delimited_by(just('('), just(')'))).then_ignore(newline);
+
+    let edge_inner = state.then_ignore(comma).then(label).then_ignore(comma).then(state);
+    let edges = edge_inner.delimited_by(just('('), just(')')).padded().separated_by(newline);
+
+    let parser = header.boxed().then_with(|((first_state, trans_count), states_count)| {
+        edges.exactly(trans_count).map(move |edges| {
+            let mut labels = IndexedSet::default();
+            let mut transitions = IndexedVec::from(vec![Vec::new(); states_count]);
+
+            for ((start_state, label), end_state) in edges {
+                let (label_id, _) = labels.insert_full(label);
+                transitions[start_state].push((label_id, end_state));
+            }
+
+            Lts { first_state, labels, transitions }
+        })
+    });
+
+    parser.then_ignore(end()).parse(source)
+}
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Act {
@@ -33,21 +79,18 @@ pub enum MuCalc {
     Nu(Var, Box<MuCalc>),
 }
 
-/// A parser for the following grammar:
-///
-/// <Atom> ::= `tt' | `ff' | `(' <MuCalc> `)'
-///         | <Id>
-/// <ModalOp> ::= `<' <Label> `>' <Atom>
-///         | `[' <Label> `]' <Atom>
-///         | <Atom>
-/// <Conjunction> ::= <Atom> (`&&' <Atom>)*
-/// <Disjuction>  ::= <Conjunction> (`||' <Conjunction>)*
-/// <Fix> ::= | `mu' <Id> `.' <Disjunction>
-///          | `nu' <Id> `.' <Disjunction>
-/// <MuCalc> ::= <Fix> | <Disjunction>
-/// <Label> ::= `true' | ( provided label ) | `!` ( provided label )
-/// <Id> ::= ( a C-style identifier )
-///
+// <Atom> ::= `tt' | `ff' | `(' <MuCalc> `)'
+//         | <Id>
+// <ModalOp> ::= `<' <Label> `>' <Atom>
+//         | `[' <Label> `]' <Atom>
+//         | <Atom>
+// <Conjunction> ::= <Atom> (`&&' <Atom>)*
+// <Disjuction>  ::= <Conjunction> (`||' <Conjunction>)*
+// <Fix> ::= | `mu' <Id> `.' <Disjunction>
+//          | `nu' <Id> `.' <Disjunction>
+// <MuCalc> ::= <Fix> | <Disjunction>
+// <Label> ::= `true' | ( provided label ) | `!` ( provided label )
+// <Id> ::= ( a C-style identifier )
 pub fn parse_mu_calc<'a>(
     labels: impl Iterator<Item = &'a str>,
     source: &str,
@@ -67,11 +110,11 @@ pub fn parse_mu_calc<'a>(
         let var_atom = var.map(MuCalc::Var);
         let atom = choice((tt, ff, group, var_atom)).padded().boxed();
 
-        let diamond_act = act.clone().delimited_by(just('<'), just('>')).padded();
-        let diamond = diamond_act.then(atom.clone()).map(|(l, e)| MuCalc::Diamond(l, Box::new(e)));
+        let diam_act = act.clone().delimited_by(just('<'), just('>')).padded();
+        let diam = diam_act.then(atom.clone()).map(|(l, e)| MuCalc::Diamond(l, Box::new(e)));
         let boxx_act = act.delimited_by(just('['), just(']')).padded();
         let boxx = boxx_act.then(atom.clone()).map(|(l, e)| MuCalc::Box(l, Box::new(e)));
-        let modal = choice((diamond, boxx, atom)).boxed();
+        let modal = choice((diam, boxx, atom)).boxed();
 
         let and = modal.separated_by(just("&&").padded()).map(MuCalc::And);
         let or = and.separated_by(just("||").padded()).map(MuCalc::Or);
