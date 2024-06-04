@@ -96,14 +96,24 @@ impl<I, T> Default for IndexedSet<I, T> {
     }
 }
 
-impl<I, T> IndexedSet<I, T> {
-    pub fn insert_full(&mut self, value: T) -> (I, bool)
-    where
-        I: AsIndex,
-        T: Hash + Eq,
-    {
+impl<I: AsIndex, T: Hash + Eq> IndexedSet<I, T> {
+    pub fn insert_full(&mut self, value: T) -> (I, bool) {
         let (idx, is_new) = self.set.insert_full(value);
         (I::from_usize(idx), is_new)
+    }
+
+    pub fn get_index_of<Q>(&self, value: &Q) -> Option<I>
+    where
+        Q: indexmap::Equivalent<T> + Hash + ?Sized,
+    {
+        Some(I::from_usize(self.set.get_index_of(value)?))
+    }
+
+    pub fn index_of<Q>(&self, value: &Q) -> I
+    where
+        Q: indexmap::Equivalent<T> + Hash + ?Sized,
+    {
+        self.get_index_of(value).unwrap()
     }
 }
 

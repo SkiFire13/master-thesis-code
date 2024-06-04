@@ -8,6 +8,10 @@ pub struct FunsFormulas {
 }
 
 impl FunsFormulas {
+    pub fn new(formulas: IndexedVec<FunId, IndexedVec<BasisElemId, Formula>>) -> Self {
+        Self { formulas }
+    }
+
     pub fn get(&self, b: BasisElemId, f: FunId) -> &Formula {
         &self.formulas[f][b]
     }

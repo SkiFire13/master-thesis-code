@@ -22,7 +22,6 @@ pub enum FixType {
 }
 
 pub struct FixEq {
-    pub var: VarId,
     pub fix_type: FixType,
     pub expr: Expr,
 }
