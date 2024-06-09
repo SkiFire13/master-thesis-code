@@ -260,3 +260,34 @@ impl<'a> ConvContext<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::strategy::solve::solve;
+    use crate::symbolic::compose::EqsFormulas;
+
+    use super::*;
+
+    #[test]
+    fn gossips() {
+        let aut_file = "./test/mucalc/gossips.aut";
+        let mucalc_file = "./test/mucalc/gossips_known_after_7_steps";
+
+        let alt_data = std::fs::read_to_string(aut_file).unwrap();
+        let lts = parse_alt(&alt_data).unwrap();
+
+        let mucalc_data = std::fs::read_to_string(mucalc_file).unwrap();
+        let labels = lts.labels.iter().map(|s| &**s);
+        let mucalc = parse_mu_calc(labels, &mucalc_data).unwrap();
+
+        let (eqs, raw_formulas) = mu_calc_to_fix(&mucalc, &lts);
+
+        let init_b = lts.first_state.to_basis_elem();
+        let init_v = eqs.last_index().unwrap();
+        let formulas = EqsFormulas::new(&eqs, &raw_formulas);
+
+        let is_valid = solve(init_b, init_v, formulas);
+
+        assert!(is_valid);
+    }
+}
