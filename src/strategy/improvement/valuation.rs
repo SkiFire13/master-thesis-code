@@ -76,7 +76,7 @@ pub fn valuation<S: Strategy>(
 
     let mut evaluated = Set::new();
     let mut profiles = IndexedVec::from(vec![PlayProfile::default(); graph.node_count()]);
-    let mut final_strategy = IndexedVec::from(vec![NodeId::INVALID; graph.node_count()]);
+    let mut final_strategy = IndexedVec::from(vec![NodeId(usize::MAX); graph.node_count()]);
 
     // Iterate by reward order, i.e. first nodes that are more in favour of player 1.
     // At each iteration we will try to fix all the loops that go through w, if w is not

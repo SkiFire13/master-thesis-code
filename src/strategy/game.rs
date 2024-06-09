@@ -38,7 +38,12 @@ impl NodeP0Id {
     pub const INIT: NodeP0Id = NodeP0Id(0);
 }
 
-#[derive(PartialEq, Eq)]
+impl NodeP1Id {
+    pub const W1: NodeP1Id = NodeP1Id(usize::MAX);
+    pub const L1: NodeP1Id = NodeP1Id(usize::MAX - 1);
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum WinState {
     Unknown,
     Win0,
@@ -268,11 +273,17 @@ pub struct GameStrategy {
     pub direct: IndexedVec<NodeP0Id, NodeP1Id>,
     pub inverse: IndexedVec<NodeP1Id, Set<NodeP0Id>>,
     pub inverse_w1: Set<NodeP0Id>,
+    pub inverse_l1: Set<NodeP0Id>,
 }
 
 impl GameStrategy {
     pub fn new() -> Self {
-        Self { direct: IndexedVec::new(), inverse: IndexedVec::new(), inverse_w1: Set::new() }
+        Self {
+            direct: IndexedVec::new(),
+            inverse: IndexedVec::new(),
+            inverse_w1: Set::new(),
+            inverse_l1: Set::new(),
+        }
     }
 
     pub fn expand(&mut self, game: &Game) {
@@ -283,7 +294,7 @@ impl GameStrategy {
         // Also skip nodes for which the strategy was already initialized.
         for (p0, succs) in game.p0.succs.enumerate().skip(self.direct.len()) {
             let target = succs.first().copied();
-            self.direct.push(target.unwrap_or(NodeP1Id::INVALID));
+            self.direct.push(target.unwrap_or(NodeP1Id::W1));
             match target {
                 Some(p1) => _ = self.inverse[p1].insert(p0),
                 None => _ = self.inverse_w1.insert(p0),
@@ -292,16 +303,18 @@ impl GameStrategy {
     }
 
     pub fn update(&mut self, p0: NodeP0Id, p1: NodeP1Id) {
-        let old_p1 = self.direct[p0];
-        match old_p1.as_option() {
-            Some(old_p1) => _ = self.inverse[old_p1].remove(&p0),
-            None => _ = self.inverse_w1.remove(&p0),
+        let op1 = self.direct[p0];
+        match op1 {
+            NodeP1Id::W1 => _ = self.inverse_w1.remove(&p0),
+            NodeP1Id::L1 => _ = self.inverse_l1.remove(&p0),
+            op1 => _ = self.inverse[op1].remove(&p0),
         }
 
         self.direct[p0] = p1;
-        match p1.as_option() {
-            Some(p1) => _ = self.inverse[p1].insert(p0),
-            None => _ = self.inverse_w1.insert(p0),
+        match p1 {
+            NodeP1Id::W1 => _ = self.inverse_w1.insert(p0),
+            NodeP1Id::L1 => _ = self.inverse_l1.insert(p0),
+            p1 => _ = self.inverse[p1].insert(p0),
         }
     }
 }
