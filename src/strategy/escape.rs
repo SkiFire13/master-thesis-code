@@ -1,29 +1,36 @@
 use crate::index::IndexedVec;
 use crate::strategy::game::Player;
 
-use super::game::{Game, NodeId, WinState};
+use super::game::{Game, GameStrategy, NodeId, NodeP1Id, WinState};
 use super::improvement::PlayProfile;
 use super::Set;
 
 pub fn update_winning_sets(
     game: &mut Game,
     profiles: &IndexedVec<NodeId, PlayProfile>,
-    strategy: &IndexedVec<NodeId, NodeId>,
+    final_strategy: &IndexedVec<NodeId, NodeId>,
+    strategy: &mut GameStrategy,
 ) {
     let p0_escaping = game.p0.escaping.iter().map(|&n| game.p0.ids[n]);
     let p1_escaping = game.p1.escaping.iter().map(|&n| game.p1.ids[n]);
 
     // Find nodes that are transitively escaping, assuming the optimal strategy for the opponent.
     let escaping =
-        find_escaping(p0_escaping.chain(p1_escaping), |n| game.predecessors_of(n), strategy);
+        find_escaping(p0_escaping.chain(p1_escaping), |n| game.predecessors_of(n), final_strategy);
 
     // TODO: make these loops generic?
 
     // TODO: Maybe avoid iterating over all nodes?
     for (p0, &n0) in game.p0.ids.enumerate() {
         if profiles[n0].winning(game) == Player::P1 && !escaping.contains(&n0) {
+            if game.p0.win[p0] != WinState::Unknown {
+                continue;
+            }
             game.p0.win[p0] = WinState::Win1;
             game.p0.w1.insert(p0);
+
+            // Fixup strategy
+            strategy.update(p0, NodeP1Id::INVALID);
 
             for &p1 in &game.p0.preds[p0] {
                 // Avoid pushing to w1 twice
@@ -43,6 +50,9 @@ pub fn update_winning_sets(
 
     for (p1, &n1) in game.p1.ids.enumerate() {
         if profiles[n1].winning(game) == Player::P0 && !escaping.contains(&n1) {
+            if game.p1.win[p1] != WinState::Unknown {
+                continue;
+            }
             game.p1.win[p1] = WinState::Win0;
             game.p1.w0.insert(p1);
 
@@ -52,6 +62,9 @@ pub fn update_winning_sets(
                     game.p0.win[p0] = WinState::Win0;
                     game.p0.w0.insert(p0);
                     // TODO: remove successors of p0
+
+                    // Fixup strategy
+                    strategy.update(p0, NodeP1Id::INVALID);
                 }
             }
 

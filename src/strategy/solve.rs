@@ -34,7 +34,7 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
         };
 
         // Update definitely winning/losing nodes.
-        update_winning_sets(&mut game, &profiles, &final_strategy);
+        update_winning_sets(&mut game, &profiles, &final_strategy, &mut strategy);
 
         match () {
             _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,

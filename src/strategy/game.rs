@@ -144,9 +144,18 @@ impl Game {
             NodeKind::L1 => Left([NodeId::W0]),
             NodeKind::W0 => Left([NodeId::L1]),
             NodeKind::W1 => Left([NodeId::L0]),
-            // The successors of a p0/p1 node are all those recorded in the node data.
-            NodeKind::P0(n) => Right(Left(self.p0.succs[n].iter().map(|&n| self.p1.ids[n]))),
-            NodeKind::P1(n) => Right(Right(self.p1.succs[n].iter().map(|&n| self.p0.ids[n]))),
+            // Successors of a p0/p1 node are either those recorder
+            // or the special nodes if they are definitely winning for some players.
+            NodeKind::P0(n) => match self.p0.win[n] {
+                WinState::Unknown => Right(Left(self.p0.succs[n].iter().map(|&n| self.p1.ids[n]))),
+                WinState::Win0 => Left([NodeId::L1]),
+                WinState::Win1 => Left([NodeId::W1]),
+            },
+            NodeKind::P1(n) => match self.p1.win[n] {
+                WinState::Unknown => Right(Right(self.p1.succs[n].iter().map(|&n| self.p0.ids[n]))),
+                WinState::Win0 => Left([NodeId::W0]),
+                WinState::Win1 => Left([NodeId::L0]),
+            },
         }
         .into_iter()
     }
@@ -279,6 +288,20 @@ impl GameStrategy {
                 Some(p1) => _ = self.inverse[p1].insert(p0),
                 None => _ = self.inverse_w1.insert(p0),
             }
+        }
+    }
+
+    pub fn update(&mut self, p0: NodeP0Id, p1: NodeP1Id) {
+        let old_p1 = self.direct[p0];
+        match old_p1.as_option() {
+            Some(old_p1) => _ = self.inverse[old_p1].remove(&p0),
+            None => _ = self.inverse_w1.remove(&p0),
+        }
+
+        self.direct[p0] = p1;
+        match p1.as_option() {
+            Some(p1) => _ = self.inverse[p1].insert(p0),
+            None => _ = self.inverse_w1.insert(p0),
         }
     }
 }
