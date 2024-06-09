@@ -32,12 +32,15 @@ pub fn update_winning_sets(
             // Fixup strategy
             strategy.update(p0, NodeP1Id::INVALID);
 
-            for &p1 in &game.p0.preds[p0] {
+            for p1 in std::mem::take(&mut game.p0.preds[p0]) {
                 // Avoid pushing to w1 twice
                 if game.p1.win[p1] == WinState::Unknown {
                     game.p1.win[p1] = WinState::Win1;
                     game.p1.w1.insert(p1);
-                    // TODO: remove successors of p1
+
+                    for p0 in std::mem::take(&mut game.p1.succs[p1]) {
+                        game.p0.preds[p0].remove(&p1);
+                    }
                 }
             }
 
@@ -56,12 +59,15 @@ pub fn update_winning_sets(
             game.p1.win[p1] = WinState::Win0;
             game.p1.w0.insert(p1);
 
-            for &p0 in &game.p1.preds[p1] {
+            for p0 in std::mem::take(&mut game.p1.preds[p1]) {
                 // Avoid pushing to w0 twice
                 if game.p0.win[p0] == WinState::Unknown {
                     game.p0.win[p0] = WinState::Win0;
                     game.p0.w0.insert(p0);
-                    // TODO: remove successors of p0
+
+                    for p1 in std::mem::take(&mut game.p0.succs[p0]) {
+                        game.p1.preds[p1].remove(&p0);
+                    }
 
                     // Fixup strategy
                     strategy.update(p0, NodeP1Id::INVALID);
