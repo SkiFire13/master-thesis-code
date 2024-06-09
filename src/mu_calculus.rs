@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chumsky::error::Simple;
-use chumsky::primitive::{any, choice, end, just};
+use chumsky::primitive::{choice, end, just, none_of};
 use chumsky::recursive::recursive;
 use chumsky::text::TextParser as _;
 use chumsky::{text, Parser};
@@ -13,6 +13,12 @@ use crate::symbolic::formula::{BasisElemId, Formula};
 
 new_index!(pub index StateId);
 new_index!(pub index LabelId);
+
+impl StateId {
+    pub fn to_basis_elem(self) -> BasisElemId {
+        BasisElemId(self.to_usize())
+    }
+}
 
 pub struct Lts {
     pub first_state: StateId,
@@ -34,16 +40,16 @@ pub fn parse_alt(source: &str) -> Result<Lts, Vec<Simple<char>>> {
     let comma = just(',').padded();
     let newline = text::newline();
     let state = number.map(StateId);
-    let label = any().repeated().collect::<String>().delimited_by(just('"'), just('"'));
+    let label = none_of('"').repeated().collect::<String>().delimited_by(just('"'), just('"'));
 
     let inner = state.then_ignore(comma).then(number).then_ignore(comma).then(number);
     let header = des.ignore_then(inner.delimited_by(just('('), just(')'))).then_ignore(newline);
 
-    let edge_inner = state.then_ignore(comma).then(label).then_ignore(comma).then(state);
-    let edges = edge_inner.delimited_by(just('('), just(')')).padded().separated_by(newline);
+    let edge = state.then_ignore(comma).then(label).then_ignore(comma).then(state);
+    let edges = edge.delimited_by(just('('), just(')')).separated_by(newline).allow_trailing();
 
     let parser = header.boxed().then_with(|((first_state, trans_count), states_count)| {
-        edges.exactly(trans_count).map(move |edges| {
+        edges.clone().exactly(trans_count).map(move |edges| {
             let mut labels = IndexedSet::default();
             let mut transitions = IndexedVec::from(vec![Vec::new(); states_count]);
 
@@ -152,7 +158,7 @@ pub fn mu_calc_to_fix(mu_calc: &MuCalc, lts: &Lts) -> (IndexedVec<VarId, FixEq>,
     // Then actually convert the expression
     ctx.conv(mu_calc);
 
-    (ctx.sys, FunsFormulas::new(ctx.formulas))
+    (ctx.sys, FunsFormulas::new(ctx.formulas, lts.transitions.len()))
 }
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]

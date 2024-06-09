@@ -5,11 +5,15 @@ use super::formula::{simplify_and, simplify_or, BasisElemId, Formula};
 
 pub struct FunsFormulas {
     formulas: IndexedVec<FunId, IndexedVec<BasisElemId, Formula>>,
+    basis_len: usize,
 }
 
 impl FunsFormulas {
-    pub fn new(formulas: IndexedVec<FunId, IndexedVec<BasisElemId, Formula>>) -> Self {
-        Self { formulas }
+    pub fn new(
+        formulas: IndexedVec<FunId, IndexedVec<BasisElemId, Formula>>,
+        basis_len: usize,
+    ) -> Self {
+        Self { formulas, basis_len }
     }
 
     pub fn get(&self, b: BasisElemId, f: FunId) -> &Formula {
@@ -28,7 +32,9 @@ pub struct EqsFormulas {
 }
 
 impl EqsFormulas {
-    pub fn new(eqs: &[FixEq], raw_moves: &FunsFormulas, basis_len: usize) -> Self {
+    pub fn new(eqs: &[FixEq], raw_moves: &FunsFormulas) -> Self {
+        let basis_len = raw_moves.basis_len;
+
         let mut moves = Vec::with_capacity(eqs.len() * raw_moves.formulas.len());
         for eq in eqs {
             for b in (0..basis_len).map(BasisElemId) {

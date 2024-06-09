@@ -5,7 +5,7 @@ use super::game::{Game, NodeId, WinState};
 use super::improvement::PlayProfile;
 use super::Set;
 
-pub fn update_w01(
+pub fn update_winning_sets(
     game: &mut Game,
     profiles: &IndexedVec<NodeId, PlayProfile>,
     strategy: &IndexedVec<NodeId, NodeId>,

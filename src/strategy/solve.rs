@@ -6,7 +6,7 @@ use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisElemId;
 
-use super::escape::update_w01;
+use super::escape::update_winning_sets;
 use super::game::NodeP0Id;
 
 pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
@@ -34,7 +34,7 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
         };
 
         // Update definitely winning/losing nodes.
-        update_w01(&mut game, &profiles, &final_strategy);
+        update_winning_sets(&mut game, &profiles, &final_strategy);
 
         match () {
             _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,

@@ -45,6 +45,10 @@ impl<I: AsIndex, T> IndexedVec<I, T> {
     ) -> impl Iterator<Item = (I, &mut T)> + DoubleEndedIterator + ExactSizeIterator {
         self.vec.iter_mut().enumerate().map(|(i, t)| (I::from_usize(i), t))
     }
+
+    pub fn last_index(&self) -> Option<I> {
+        self.len().checked_sub(1).map(I::from_usize)
+    }
 }
 
 impl<I, T> Default for IndexedVec<I, T> {
@@ -201,3 +205,19 @@ macro_rules! new_index {
     };
 }
 pub(crate) use new_index;
+
+#[cfg(test)]
+mod test {
+    use crate::index::AsIndex;
+
+    new_index!(pub index TestId);
+
+    #[test]
+    fn simple() {
+        let id = TestId(42);
+        assert_eq!(id.to_usize(), 42);
+
+        let id = TestId::from_usize(42);
+        assert_eq!(id.to_usize(), 42);
+    }
+}
