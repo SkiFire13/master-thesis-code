@@ -1,6 +1,6 @@
 use either::Either::{Left, Right};
 
-use crate::strategy::game::{Game, GameStrategy, NodeId, NodeKind, Player, Relevance};
+use crate::strategy::game::{Game, GameStrategy, NodeId, NodeKind, NodeP1Id, Player, Relevance};
 
 use super::improve::StrategyMut;
 use super::valuation::{Strategy, ValuationGraph};
@@ -84,7 +84,7 @@ impl StrategyMut for GameStrategy {
     fn update_each(&mut self, graph: &Self::Graph, mut f: impl FnMut(NodeId, NodeId) -> NodeId) {
         for (p0, p1) in self.direct.enumerate_mut() {
             let n0 = graph.p0.node_ids[p0];
-            let n1 = match *p1 {
+            let n1 = match p1.as_option() {
                 Some(p1) => graph.p1.node_ids[p1],
                 None => NodeId::W1,
             };
@@ -103,19 +103,19 @@ impl StrategyMut for GameStrategy {
                 NodeKind::L1 => unreachable!(),
                 NodeKind::W1 => {
                     // p1 cannot be None otherwise n2 == n1 would be true
-                    self.inverse[p1.unwrap()].remove(&p0);
+                    self.inverse[*p1].remove(&p0);
                     self.inverse_w1.insert(p0);
-                    *p1 = None;
+                    *p1 = NodeP1Id::INVALID;
                 }
                 NodeKind::P1(np1) => {
                     // Update the inverse sets.
-                    match *p1 {
+                    match p1.as_option() {
                         Some(p1) => self.inverse[p1].remove(&p0),
                         None => self.inverse_w1.remove(&p0),
                     };
                     self.inverse[np1].insert(p0);
                     // Update the direct successor.
-                    *p1 = Some(np1);
+                    *p1 = np1;
                 }
             }
         }

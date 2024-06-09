@@ -249,8 +249,8 @@ impl<I: Copy> Inserted<I> {
 }
 
 pub struct GameStrategy {
-    // The successor is None if it's actually W1
-    pub direct: IndexedVec<NodeP0Id, Option<NodeP1Id>>,
+    // The successor is NodeP1Id::INVALID if it's actually W1
+    pub direct: IndexedVec<NodeP0Id, NodeP1Id>,
     pub inverse: IndexedVec<NodeP1Id, Set<NodeP0Id>>,
     pub inverse_w1: Set<NodeP0Id>,
 }
@@ -268,7 +268,7 @@ impl GameStrategy {
         // Also skip nodes for which the strategy was already initialized.
         for (p0, succs) in game.p0.succs.enumerate().skip(self.direct.len()) {
             let target = succs.first().copied();
-            self.direct.push(target);
+            self.direct.push(target.unwrap_or(NodeP1Id::INVALID));
             match target {
                 Some(p1) => _ = self.inverse[p1].insert(p0),
                 None => _ = self.inverse_w1.insert(p0),

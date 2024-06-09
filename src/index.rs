@@ -186,16 +186,27 @@ macro_rules! new_index {
     ($(#[$($meta:tt)*])* $vis:vis index $ty:ident) => {
         $(#[$($meta)*])*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        $vis struct $ty { index: $crate::index::NonMaxUsize }
+        $vis struct $ty(pub usize);
 
-        #[allow(non_snake_case)]
-        $vis const fn $ty(index: usize) -> $ty {
-            $ty { index: $crate::index::NonMaxUsize::new(index) }
+        #[allow(unused)]
+        impl $ty {
+            pub const INVALID: Self = Self(usize::MAX);
+
+            pub fn as_option(self) -> Option<Self> {
+                match self {
+                    Self::INVALID => None,
+                    _ => Some(self)
+                }
+            }
+
+            pub fn map_or<T, F: FnOnce(Self) -> T>(self, fallback: T, f: F) -> T {
+                self.as_option().map_or(fallback, f)
+            }
         }
 
         impl $crate::index::AsIndex for $ty {
             fn to_usize(&self) -> usize {
-                self.index.to_usize()
+                self.0
             }
 
             fn from_usize(index: usize) -> Self {
