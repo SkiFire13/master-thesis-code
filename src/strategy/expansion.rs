@@ -29,12 +29,12 @@ fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeId
     match profiles[NodeId::INIT].winning(game) {
         Player::P0 => {
             let p1 = game.p1.escaping.first().copied().unwrap();
-            let n = game.p1.node_ids[p1];
+            let n = game.p1.ids[p1];
             vec![n]
         }
         Player::P1 => {
             let p0 = game.p0.escaping.first().copied().unwrap();
-            let n = game.p0.node_ids[p0];
+            let n = game.p0.ids[p0];
             vec![n]
         }
     }
@@ -70,7 +70,7 @@ fn e2(
             game.insert_p0_to_p1_edge(n, inserted.id());
 
             if let Inserted::New(p1) = inserted {
-                add(game.p1.node_ids[p1])
+                add(game.p1.ids[p1])
             }
         }
         NodeKind::P1(n) => {
@@ -98,7 +98,7 @@ fn e2(
                 game.insert_p1_to_p0_edge(n, inserted.id());
 
                 if let Inserted::New(p0) = inserted {
-                    add(game.p0.node_ids[p0]);
+                    add(game.p0.ids[p0]);
                 }
             } else {
                 // Asymmetric version: iterate over all remaining moves
@@ -107,7 +107,7 @@ fn e2(
                     game.insert_p1_to_p0_edge(n, inserted.id());
 
                     if let Inserted::New(p0) = inserted {
-                        add(game.p0.node_ids[p0]);
+                        add(game.p0.ids[p0]);
                     }
                 }
 

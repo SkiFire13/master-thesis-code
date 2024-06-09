@@ -40,9 +40,7 @@ impl Strategy for GameStrategy {
     fn iter(&self, game: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)> {
         self.direct
             .enumerate()
-            .map(|(n0, &n1)| {
-                (game.p0.node_ids[n0], n1.map_or(NodeId::W1, |n1| game.p1.node_ids[n1]))
-            })
+            .map(|(n0, &n1)| (game.p0.ids[n0], n1.map_or(NodeId::W1, |n1| game.p1.ids[n1])))
             .chain([(NodeId::L0, NodeId::W1), (NodeId::W0, NodeId::L1)])
     }
 
@@ -50,13 +48,13 @@ impl Strategy for GameStrategy {
         match game.resolve(n) {
             NodeKind::L0 => NodeId::W1,
             NodeKind::W0 => NodeId::L1,
-            NodeKind::P0(n) => self.direct[n].map_or(NodeId::W1, |n| game.p1.node_ids[n]),
+            NodeKind::P0(n) => self.direct[n].map_or(NodeId::W1, |n| game.p1.ids[n]),
             NodeKind::L1 | NodeKind::W1 | NodeKind::P1(_) => unreachable!(),
         }
     }
 
     fn get_inverse(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
-        let map_p0 = |&n| game.p0.node_ids[n];
+        let map_p0 = |&n| game.p0.ids[n];
         match game.resolve(n) {
             NodeKind::L1 => Left(Left([NodeId::W0].iter().copied())),
             NodeKind::W1 => Left(Right(self.inverse_w1.iter().map(map_p0).chain([NodeId::L0]))),
@@ -83,9 +81,9 @@ impl Strategy for GameStrategy {
 impl StrategyMut for GameStrategy {
     fn update_each(&mut self, graph: &Self::Graph, mut f: impl FnMut(NodeId, NodeId) -> NodeId) {
         for (p0, p1) in self.direct.enumerate_mut() {
-            let n0 = graph.p0.node_ids[p0];
+            let n0 = graph.p0.ids[p0];
             let n1 = match p1.as_option() {
-                Some(p1) => graph.p1.node_ids[p1],
+                Some(p1) => graph.p1.ids[p1],
                 None => NodeId::W1,
             };
 

@@ -50,7 +50,7 @@ pub struct NodesData<I, P, M, O> {
     // Deduplicates positions and maps them to a numeric id.
     pub pos: IndexedSet<I, P>,
     // Map from the player nodes' ids to the global ids.
-    pub node_ids: IndexedVec<I, NodeId>,
+    pub ids: IndexedVec<I, NodeId>,
     // Remaining moves for each node.
     pub moves: IndexedVec<I, M>,
     // Set of predecessors for each node.
@@ -65,6 +65,12 @@ pub struct NodesData<I, P, M, O> {
     pub w0: Set<I>,
     // Set of this player's nodes where player 1 wins
     pub w1: Set<I>,
+}
+
+impl<I, P, M, O> NodesData<I, P, M, O> {
+    pub fn len(&self) -> usize {
+        self.pos.len()
+    }
 }
 
 pub struct Game {
@@ -139,15 +145,15 @@ impl Game {
             NodeKind::W0 => Left([NodeId::L1]),
             NodeKind::W1 => Left([NodeId::L0]),
             // The successors of a p0/p1 node are all those recorded in the node data.
-            NodeKind::P0(n) => Right(Left(self.p0.succs[n].iter().map(|&n| self.p1.node_ids[n]))),
-            NodeKind::P1(n) => Right(Right(self.p1.succs[n].iter().map(|&n| self.p0.node_ids[n]))),
+            NodeKind::P0(n) => Right(Left(self.p0.succs[n].iter().map(|&n| self.p1.ids[n]))),
+            NodeKind::P1(n) => Right(Right(self.p1.succs[n].iter().map(|&n| self.p0.ids[n]))),
         }
         .into_iter()
     }
 
     pub fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        let map_p0 = |&n| self.p0.node_ids[n];
-        let map_p1 = |&n| self.p1.node_ids[n];
+        let map_p0 = |&n| self.p0.ids[n];
+        let map_p1 = |&n| self.p1.ids[n];
         match self.resolve(n) {
             // The predecessors of special nodes are other special nodes and the definitely winning/losing nodes.
             NodeKind::L0 => Left(Left(self.p1.w1.iter().map(map_p1).chain([NodeId::W1]))),
@@ -166,7 +172,7 @@ impl Game {
                 .enumerate()
                 .filter(move |&(i, _)| self.formulas.eq_fix_types[i] == fix_type)
                 .flat_map(|(_, nodes)| nodes)
-                .map(|&n0| self.p0.node_ids[n0])
+                .map(|&n0| self.p0.ids[n0])
         };
 
         // Both have odd 2 * var_count + 1 relevance
@@ -174,7 +180,7 @@ impl Game {
         // These have odd >= 1 relevance and are sorted by decreasing node id.
         let p0_f1_nodes = iter(FixType::Min).rev();
         // These have 0 reward.
-        let p1_nodes = self.p1.node_ids.iter().copied();
+        let p1_nodes = self.p1.ids.iter().copied();
         // These have even >=2 reward and are sorted by node id.
         let p0_f0_nodes = iter(FixType::Max);
         // These have 2 * var_count + 2 reward
@@ -193,7 +199,7 @@ impl Game {
         }
 
         // If the node is new we need to setup its slot in the various IndexVecs
-        self.p0.node_ids.push(self.nodes.push(NodeKind::P0(n)));
+        self.p0.ids.push(self.nodes.push(NodeKind::P0(n)));
         self.p0.moves.push(pos.moves(&self.formulas));
         self.p0.preds.push(Set::new());
         self.p0.succs.push(Set::new());
@@ -214,7 +220,7 @@ impl Game {
             return Inserted::Existing(n);
         }
 
-        self.p1.node_ids.push(self.nodes.push(NodeKind::P1(n)));
+        self.p1.ids.push(self.nodes.push(NodeKind::P1(n)));
         self.p1.moves.push(pos.moves());
         self.p1.preds.push(Set::new());
         self.p1.succs.push(Set::new());
@@ -262,7 +268,7 @@ impl GameStrategy {
 
     pub fn expand(&mut self, game: &Game) {
         // Ensure the size of inverse is correct.
-        self.inverse.resize_with(game.p1.pos.len(), Set::new);
+        self.inverse.resize_with(game.p1.len(), Set::new);
 
         // Select initial strategy by picking a random successor for each p0 node.
         // Also skip nodes for which the strategy was already initialized.
@@ -321,7 +327,7 @@ impl<I, P, M, O> Default for NodesData<I, P, M, O> {
     fn default() -> Self {
         Self {
             pos: Default::default(),
-            node_ids: Default::default(),
+            ids: Default::default(),
             moves: Default::default(),
             preds: Default::default(),
             succs: Default::default(),

@@ -10,8 +10,8 @@ pub fn update_winning_sets(
     profiles: &IndexedVec<NodeId, PlayProfile>,
     strategy: &IndexedVec<NodeId, NodeId>,
 ) {
-    let p0_escaping = game.p0.escaping.iter().map(|&n| game.p0.node_ids[n]);
-    let p1_escaping = game.p1.escaping.iter().map(|&n| game.p1.node_ids[n]);
+    let p0_escaping = game.p0.escaping.iter().map(|&n| game.p0.ids[n]);
+    let p1_escaping = game.p1.escaping.iter().map(|&n| game.p1.ids[n]);
 
     // Find nodes that are transitively escaping, assuming the optimal strategy for the opponent.
     let escaping =
@@ -20,7 +20,7 @@ pub fn update_winning_sets(
     // TODO: make these loops generic?
 
     // TODO: Maybe avoid iterating over all nodes?
-    for (p0, &n0) in game.p0.node_ids.enumerate() {
+    for (p0, &n0) in game.p0.ids.enumerate() {
         if profiles[n0].winning(game) == Player::P1 && !escaping.contains(&n0) {
             game.p0.win[p0] = WinState::Win1;
             game.p0.w1.insert(p0);
@@ -41,7 +41,7 @@ pub fn update_winning_sets(
         }
     }
 
-    for (p1, &n1) in game.p1.node_ids.enumerate() {
+    for (p1, &n1) in game.p1.ids.enumerate() {
         if profiles[n1].winning(game) == Player::P0 && !escaping.contains(&n1) {
             game.p1.win[p1] = WinState::Win0;
             game.p1.w0.insert(p1);
