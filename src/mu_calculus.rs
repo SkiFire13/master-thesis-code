@@ -268,15 +268,11 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn gossips() {
-        let aut_file = "./test/mucalc/gossips.aut";
-        let mucalc_file = "./test/mucalc/gossips_known_after_7_steps";
-
-        let alt_data = std::fs::read_to_string(aut_file).unwrap();
+    fn run_test(aut_path: &str, mucalc_path: &str) -> bool {
+        let alt_data = std::fs::read_to_string(aut_path).unwrap();
         let lts = parse_alt(&alt_data).unwrap();
 
-        let mucalc_data = std::fs::read_to_string(mucalc_file).unwrap();
+        let mucalc_data = std::fs::read_to_string(mucalc_path).unwrap();
         let labels = lts.labels.iter().map(|s| &**s);
         let mucalc = parse_mu_calc(labels, &mucalc_data).unwrap();
 
@@ -287,6 +283,24 @@ mod test {
         let formulas = EqsFormulas::new(&eqs, &raw_formulas);
 
         let is_valid = solve(init_b, init_v, formulas);
+
+        is_valid
+    }
+
+    #[test]
+    fn bridge_17() {
+        let is_valid =
+            run_test("./test/mucalc/bridge/bridge-referee.aut", "./test/mucalc/bridge/receive-17");
+
+        assert!(is_valid);
+    }
+
+    #[test]
+    fn gossips_known_after_7_steps() {
+        let is_valid = run_test(
+            "./test/mucalc/gossips/gossips.aut",
+            "./test/mucalc/gossips/gossips_known_after_7_steps",
+        );
 
         assert!(is_valid);
     }
