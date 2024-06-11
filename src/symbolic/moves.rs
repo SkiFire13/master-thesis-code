@@ -3,11 +3,9 @@ use std::rc::Rc;
 
 use indexmap::IndexSet;
 
-use crate::symbolic::formula::simplify_and;
-
 use super::compose::EqsFormulas;
 use super::eq::VarId;
-use super::formula::{simplify_or, BasisElemId, Formula};
+use super::formula::{simplify_and, simplify_or, BasisElemId, Formula};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct P0Pos {
