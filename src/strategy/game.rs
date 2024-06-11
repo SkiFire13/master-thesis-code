@@ -286,18 +286,22 @@ impl GameStrategy {
         }
     }
 
-    pub fn expand(&mut self, game: &Game) {
-        // Ensure the size of inverse is correct.
-        self.inverse.resize_with(game.p1.len(), Set::new);
+    pub fn try_add(&mut self, p0: NodeP0Id, p1: NodeP1Id) {
+        debug_assert!(p0.to_usize() <= self.direct.len());
+        debug_assert!(p1.to_usize() <= self.inverse.len() || p1 == NodeP1Id::W1);
 
-        // Select initial strategy by picking a random successor for each p0 node.
-        // Also skip nodes for which the strategy was already initialized.
-        for (p0, succs) in game.p0.succs.enumerate().skip(self.direct.len()) {
-            let target = succs.first().copied();
-            self.direct.push(target.unwrap_or(NodeP1Id::W1));
-            match target {
-                Some(p1) => _ = self.inverse[p1].insert(p0),
-                None => _ = self.inverse_w1.insert(p0),
+        // Ensure in inverse there's a slot for p1, as this will be used in the next if.
+        if p1.to_usize() == self.inverse.len() {
+            self.inverse.push(Set::new());
+        }
+
+        // Ensure in direct there's a slot for p0, if not insert it.
+        if p0.to_usize() == self.direct.len() {
+            self.direct.push(p1);
+            match p1 {
+                NodeP1Id::W1 => _ = self.inverse_w1.insert(p0),
+                NodeP1Id::L1 => _ = self.inverse_l1.insert(p0),
+                p1 => _ = self.inverse[p1].insert(p0),
             }
         }
     }

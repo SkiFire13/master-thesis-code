@@ -48,8 +48,9 @@ impl Iterator for P1Moves {
     type Item = P0Pos;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let &(b, i) = self.0.get(self.1)?;
-        self.1 += 1;
+        let P1Moves(moves, index) = self;
+        let &(b, i) = moves.get(*index)?;
+        *index += 1;
         Some(P0Pos { b, i })
     }
 }

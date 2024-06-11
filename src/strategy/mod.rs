@@ -3,6 +3,7 @@ pub mod expansion;
 pub mod game;
 pub mod improvement;
 pub mod solve;
+pub mod winning;
 
 // Bitset or something similar?
 pub type Set<T> = std::collections::BTreeSet<T>;

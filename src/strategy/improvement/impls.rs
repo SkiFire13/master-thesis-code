@@ -65,8 +65,8 @@ impl Strategy for GameStrategy {
     fn get_inverse(&self, n: NodeId, game: &Self::Graph) -> impl Iterator<Item = NodeId> {
         let map_p0 = |&n| game.p0.ids[n];
         match game.resolve(n) {
-            NodeKind::L1 => Left(Left([NodeId::W0].iter().copied())),
-            NodeKind::W1 => Left(Right(self.inverse_w1.iter().map(map_p0).chain([NodeId::L0]))),
+            NodeKind::L1 => Left(self.inverse_l1.iter().map(map_p0).chain([NodeId::W0])),
+            NodeKind::W1 => Left(self.inverse_w1.iter().map(map_p0).chain([NodeId::L0])),
             NodeKind::P1(n) => Right(self.inverse[n].iter().map(map_p0)),
             NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
         }

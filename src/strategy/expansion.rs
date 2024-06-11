@@ -3,17 +3,21 @@ use std::collections::HashSet;
 use crate::index::IndexedVec;
 use crate::strategy::game::{NodeId, Player};
 
-use super::game::{Game, Inserted, NodeKind, WinState};
+use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
 use super::improvement::PlayProfile;
 
-pub fn expand(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) {
+pub fn expand(
+    game: &mut Game,
+    profiles: &IndexedVec<NodeId, PlayProfile>,
+    strategy: &mut GameStrategy,
+) {
     let mut a = e1(game, profiles);
     let mut new_a = Vec::new();
     let mut seen = HashSet::new();
 
     while !a.is_empty() {
         for v in a.drain(..) {
-            e2(game, v, profiles, |n| {
+            e2(game, v, profiles, strategy, |n| {
                 debug_assert!(seen.insert(n));
                 new_a.push(n);
             });
@@ -44,17 +48,17 @@ fn e2(
     game: &mut Game,
     w: NodeId,
     profiles: &IndexedVec<NodeId, PlayProfile>,
+    strategy: &mut GameStrategy,
     mut add: impl FnMut(NodeId),
 ) {
     match game.resolve(w) {
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(n) => {
+            // Handle case where node never had any moves.
             if game.formula_of(n).is_false() {
-                // The formula is false so the successor is W1
-                // and the node is winning for p1.
-                game.p0.win[n] = WinState::Win1;
-                game.p0.w1.insert(n);
                 game.p0.incomplete.remove(&n);
+                strategy.try_add(n, NodeP1Id::W1);
+                game.set_p0_losing(n, strategy);
                 return;
             }
 
@@ -68,18 +72,17 @@ fn e2(
 
             let inserted = game.insert_p1(pos);
             game.insert_p0_to_p1_edge(n, inserted.id());
+            strategy.try_add(n, inserted.id());
 
             if let Inserted::New(p1) = inserted {
-                add(game.p1.ids[p1])
+                add(game.p1.ids[p1]);
             }
         }
         NodeKind::P1(n) => {
-            // The node has no move at all, so its only successor is W0
-            // and the node is winning for p0.
+            // Handle case where node never had any moves.
             if game.p1.pos[n].moves.is_empty() {
-                game.p1.win[n] = WinState::Win0;
-                game.p1.w0.insert(n);
                 game.p1.incomplete.remove(&n);
+                game.set_p1_losing(n, strategy);
                 return;
             }
 

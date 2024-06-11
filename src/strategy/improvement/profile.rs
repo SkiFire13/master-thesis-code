@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use crate::strategy::game::{NodeId, Player, Relevance, Reward};
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PlayProfile {
     /// Most relevant node of the cycle.
     pub most_relevant: NodeId,

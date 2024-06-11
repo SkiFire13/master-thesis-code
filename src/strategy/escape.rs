@@ -1,7 +1,7 @@
 use crate::index::IndexedVec;
 use crate::strategy::game::Player;
 
-use super::game::{Game, GameStrategy, NodeId, NodeP1Id, WinState};
+use super::game::{Game, GameStrategy, NodeId, WinState};
 use super::improvement::PlayProfile;
 use super::Set;
 
@@ -17,79 +17,35 @@ pub fn update_winning_sets(
     let incomplete = p0_incomplete.chain(p1_incomplete);
 
     // Find nodes that are transitively reach unexplored ones, assuming the optimal strategy for the opponent.
-    let escaping = find_escape_set(incomplete, |n| game.predecessors_of(n), final_strategy);
+    let escape_set = find_escape_set(incomplete, |n| game.predecessors_of(n), final_strategy);
 
     // TODO: make these loops generic?
     // TODO: Maybe avoid iterating over all nodes?
 
-    for (p0, &n0) in game.p0.ids.enumerate() {
-        let is_losing = profiles[n0].winning(game) == Player::P1 && !escaping.contains(&n0);
+    for p0 in game.p0.ids.indexes() {
+        let n0 = game.p0.ids[p0];
+
+        let is_losing = profiles[n0].winning(game) == Player::P1 && !escape_set.contains(&n0);
         let is_already_losing = game.p0.win[p0] == WinState::Win1;
 
         if !is_losing || is_already_losing {
             continue;
         }
 
-        // Mark nodes as losing.
-        game.p0.win[p0] = WinState::Win1;
-        game.p0.w1.insert(p0);
-
-        // Fixup P0 strategy
-        strategy.update(p0, NodeP1Id::W1);
-
-        // Optimization: remove successors of predecessors
-        for p1 in std::mem::take(&mut game.p0.preds[p0]) {
-            debug_assert_eq!(game.p1.win[p1], WinState::Unknown);
-
-            // Mark predecessors as winning.
-            game.p1.win[p1] = WinState::Win1;
-            game.p1.w1.insert(p1);
-
-            // Optimization: remove successors of predecessors
-            for p0 in std::mem::take(&mut game.p1.succs[p1]) {
-                game.p0.preds[p0].remove(&p1);
-            }
-        }
-
-        // Optimization: remove successors
-        for p1 in std::mem::take(&mut game.p0.succs[p0]) {
-            game.p1.preds[p1].remove(&p0);
-        }
+        game.set_p0_losing(p0, strategy);
     }
 
-    for (p1, &n1) in game.p1.ids.enumerate() {
-        let is_losing = profiles[n1].winning(game) == Player::P0 && !escaping.contains(&n1);
+    for p1 in game.p1.ids.indexes() {
+        let n1 = game.p1.ids[p1];
+
+        let is_losing = profiles[n1].winning(game) == Player::P0 && !escape_set.contains(&n1);
         let is_already_losing = game.p1.win[p1] == WinState::Win0;
 
         if !is_losing || is_already_losing {
             continue;
         }
 
-        // Mark nodes as losing.
-        game.p1.win[p1] = WinState::Win0;
-        game.p1.w0.insert(p1);
-
-        // Optimization: remove successors of predecessors
-        for p0 in std::mem::take(&mut game.p1.preds[p1]) {
-            debug_assert_eq!(game.p0.win[p0], WinState::Unknown);
-
-            // Mark predecessors as winning.
-            game.p0.win[p0] = WinState::Win0;
-            game.p0.w0.insert(p0);
-
-            // Optimization: remove successors of predecessors
-            for p1 in std::mem::take(&mut game.p0.succs[p0]) {
-                game.p1.preds[p1].remove(&p0);
-            }
-
-            // Fixup P0 strategy
-            strategy.update(p0, NodeP1Id::L1);
-        }
-
-        // Optimization: remove successors
-        for p0 in std::mem::take(&mut game.p1.succs[p1]) {
-            game.p0.preds[p0].remove(&p1);
-        }
+        game.set_p1_losing(p1, strategy);
     }
 }
 

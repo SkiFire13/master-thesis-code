@@ -19,8 +19,7 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
     let mut strategy = GameStrategy::new();
 
     // Initial expansion
-    expand(&mut game, &initial_play_profiles());
-    strategy.expand(&game);
+    expand(&mut game, &initial_play_profiles(), &mut strategy);
 
     loop {
         // Try to improve while possible
@@ -44,8 +43,7 @@ pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
 
         // We still don't know whether the initial node is definitely winning/losing
         // so expand again the graph.
-        expand(&mut game, &profiles);
-        strategy.expand(&game);
+        expand(&mut game, &profiles, &mut strategy);
     }
 }
 
