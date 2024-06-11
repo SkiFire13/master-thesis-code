@@ -28,12 +28,12 @@ fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeId
     // In practice this shouldn't matter though.
     match profiles[NodeId::INIT].winning(game) {
         Player::P0 => {
-            let p1 = game.p1.escaping.first().copied().unwrap();
+            let p1 = game.p1.incomplete.first().copied().unwrap();
             let n = game.p1.ids[p1];
             vec![n]
         }
         Player::P1 => {
-            let p0 = game.p0.escaping.first().copied().unwrap();
+            let p0 = game.p0.incomplete.first().copied().unwrap();
             let n = game.p0.ids[p0];
             vec![n]
         }
@@ -54,7 +54,7 @@ fn e2(
                 // and the node is winning for p1.
                 game.p0.win[n] = WinState::Win1;
                 game.p0.w1.insert(n);
-                game.p0.escaping.remove(&n);
+                game.p0.incomplete.remove(&n);
                 return;
             }
 
@@ -62,7 +62,7 @@ fn e2(
             _ = profiles;
 
             let Some(pos) = game.p0.moves[n].next() else {
-                game.p0.escaping.remove(&n);
+                game.p0.incomplete.remove(&n);
                 return;
             };
 
@@ -79,7 +79,7 @@ fn e2(
             if game.p1.pos[n].moves.is_empty() {
                 game.p1.win[n] = WinState::Win0;
                 game.p1.w0.insert(n);
-                game.p1.escaping.remove(&n);
+                game.p1.incomplete.remove(&n);
                 return;
             }
 
@@ -90,7 +90,7 @@ fn e2(
             if SYMMETRIC {
                 // Symmetric version: consider next position
                 let Some(pos) = game.p1.moves[n].next() else {
-                    game.p1.escaping.remove(&n);
+                    game.p1.incomplete.remove(&n);
                     return;
                 };
 
@@ -111,7 +111,7 @@ fn e2(
                     }
                 }
 
-                game.p1.escaping.remove(&n);
+                game.p1.incomplete.remove(&n);
             }
         }
     }

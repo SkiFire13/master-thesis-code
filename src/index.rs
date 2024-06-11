@@ -46,6 +46,10 @@ impl<I: AsIndex, T> IndexedVec<I, T> {
         self.vec.iter_mut().enumerate().map(|(i, t)| (I::from_usize(i), t))
     }
 
+    pub fn indexes(&self) -> impl Iterator<Item = I> {
+        (0..self.len()).map(I::from_usize)
+    }
+
     pub fn last_index(&self) -> Option<I> {
         self.len().checked_sub(1).map(I::from_usize)
     }

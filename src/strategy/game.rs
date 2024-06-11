@@ -62,8 +62,8 @@ pub struct NodesData<I, P, M, O> {
     pub preds: IndexedVec<I, Set<O>>,
     // Set of successors for each node.
     pub succs: IndexedVec<I, Set<O>>,
-    // Set of nodes that can reach unexplored nodes.
-    pub escaping: Set<I>,
+    // Set of nodes that still have unexplored edges.
+    pub incomplete: Set<I>,
     // Which player definitely wins on this node
     pub win: IndexedVec<I, WinState>,
     // Set of this player's nodes where player 0 wins
@@ -217,7 +217,7 @@ impl Game {
         self.p0.moves.push(pos.moves(&self.formulas));
         self.p0.preds.push(Set::new());
         self.p0.succs.push(Set::new());
-        self.p0.escaping.insert(n);
+        self.p0.incomplete.insert(n);
         self.p0.win.push(WinState::Unknown);
 
         self.var_to_p0[pos.i].push(n);
@@ -238,7 +238,7 @@ impl Game {
         self.p1.moves.push(pos.moves());
         self.p1.preds.push(Set::new());
         self.p1.succs.push(Set::new());
-        self.p1.escaping.insert(n);
+        self.p1.incomplete.insert(n);
         self.p1.win.push(WinState::Unknown);
 
         Inserted::New(n)
@@ -367,7 +367,7 @@ impl<I, P, M, O> Default for NodesData<I, P, M, O> {
             moves: Default::default(),
             preds: Default::default(),
             succs: Default::default(),
-            escaping: Default::default(),
+            incomplete: Default::default(),
             win: Default::default(),
             w0: Default::default(),
             w1: Default::default(),
