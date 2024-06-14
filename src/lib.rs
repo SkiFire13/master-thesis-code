@@ -1,4 +1,4 @@
-pub mod mu_calculus;
+pub mod instances;
 pub mod strategy;
 pub mod symbolic;
 

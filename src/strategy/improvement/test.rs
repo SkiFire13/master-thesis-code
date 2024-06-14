@@ -3,6 +3,7 @@ use std::cmp::Reverse;
 use indexmap::IndexSet;
 
 use crate::index::IndexedVec;
+use crate::instances::parity::parse_parity_game;
 use crate::strategy::game::{NodeId, Player, Relevance};
 use crate::strategy::NodeMap;
 
@@ -67,36 +68,27 @@ impl Strategy for TestStrategy {
     }
 }
 
-fn parse_test(test: &str) -> TestGame {
-    let mut game = TestGame::default();
-    for line in test.lines().skip(1) {
-        let (_, rest) = line.split_once(' ').unwrap();
-        let (relevance, rest) = rest.split_once(' ').unwrap();
-        let (player, rest) = rest.split_once(' ').unwrap();
-        let (successors, _) = rest.split_once([' ', ';']).unwrap();
+fn parse_test(source: &str) -> TestGame {
+    let pg = parse_parity_game(source).unwrap();
 
-        game.relevance.push(relevance.parse().unwrap());
-        match player {
-            "0" => _ = game.players.push(Player::P0),
-            "1" => _ = game.players.push(Player::P1),
-            _ => panic!(),
-        }
-        let successors = successors.split(',').map(|i| NodeId(i.parse().unwrap())).collect();
-        game.successors.push(successors);
-    }
+    let relevance = pg.nodes.iter().map(|n| n.relevance).collect::<IndexedVec<_, _>>();
+    let players = pg.nodes.iter().map(|n| n.player).collect::<IndexedVec<_, _>>();
 
-    game.predecessors.resize_with(game.successors.len(), Vec::new);
-    for (n, succ) in game.successors.enumerate() {
-        for &m in succ {
-            game.predecessors[m].push(n);
+    let mut successors = (0..pg.nodes.len()).map(|_| Vec::new()).collect::<IndexedVec<_, _>>();
+    let mut predecessors = (0..pg.nodes.len()).map(|_| Vec::new()).collect::<IndexedVec<_, _>>();
+    for n in &pg.nodes {
+        for &s in &n.successors {
+            let (n, s) = (NodeId(n.id), NodeId(s));
+            successors[n].push(s);
+            predecessors[s].push(n);
         }
     }
 
-    game.nodes_by_reward = (0..game.relevance.len()).map(NodeId).collect::<Vec<_>>();
-    game.nodes_by_reward
-        .sort_unstable_by_key(|&node| Relevance { priority: game.relevance[node], node }.reward());
+    let mut nodes_by_reward = (0..relevance.len()).map(NodeId).collect::<Vec<_>>();
+    nodes_by_reward
+        .sort_unstable_by_key(|&node| Relevance { priority: relevance[node], node }.reward());
 
-    game
+    TestGame { relevance, players, successors, predecessors, nodes_by_reward }
 }
 
 fn run_valuation_test(game: &TestGame) {
@@ -161,7 +153,7 @@ macro_rules! declare_test {
         $(
             #[test]
             fn $name() {
-                let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/test/data/", stringify!($name)));
+                let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/test/pg/", stringify!($name)));
                 let game = parse_test(input);
                 run_valuation_test(&game);
             }
@@ -179,12 +171,12 @@ declare_test! {
 
 #[test]
 fn all() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test/data/");
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test/pg/");
     for e in std::fs::read_dir(dir).unwrap() {
         let e = e.unwrap();
 
         let name = e.file_name().into_string().unwrap();
-        if !name.starts_with("vb") {
+        if name == ".gitignore" {
             continue;
         }
 

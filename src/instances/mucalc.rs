@@ -268,40 +268,39 @@ mod test {
 
     use super::*;
 
-    fn run_test(aut_path: &str, mucalc_path: &str) -> bool {
-        let alt_data = std::fs::read_to_string(aut_path).unwrap();
-        let lts = parse_alt(&alt_data).unwrap();
+    fn run_test(aut_path: &str, mucalc_path: &str) {
+        let aut = std::fs::read_to_string(aut_path).unwrap();
+        let lts = parse_alt(&aut).unwrap();
 
-        let mucalc_data = std::fs::read_to_string(mucalc_path).unwrap();
         let labels = lts.labels.iter().map(|s| &**s);
-        let mucalc = parse_mu_calc(labels, &mucalc_data).unwrap();
+        let mucalc = std::fs::read_to_string(mucalc_path).unwrap();
+        let mucalc = parse_mu_calc(labels, &mucalc).unwrap();
 
-        let (eqs, raw_formulas) = mu_calc_to_fix(&mucalc, &lts);
+        let (eqs, funs_formulas) = mu_calc_to_fix(&mucalc, &lts);
 
         let init_b = lts.first_state.to_basis_elem();
         let init_v = eqs.last_index().unwrap();
-        let formulas = EqsFormulas::new(&eqs, &raw_formulas);
+        let formulas = EqsFormulas::new(&eqs, &funs_formulas);
 
         let is_valid = solve(init_b, init_v, formulas);
 
-        is_valid
-    }
-
-    #[test]
-    fn bridge_17() {
-        let is_valid =
-            run_test("./test/mucalc/bridge/bridge-referee.aut", "./test/mucalc/bridge/receive-17");
-
         assert!(is_valid);
     }
 
-    #[test]
-    fn gossips_known_after_7_steps() {
-        let is_valid = run_test(
-            "./test/mucalc/gossips/gossips.aut",
-            "./test/mucalc/gossips/gossips_known_after_7_steps",
-        );
+    macro_rules! declare_test {
+        ($($aut:ident : [$($f:ident),* $(,)?]),* $(,)?) => { $($(
+            #[test]
+            fn $f() {
+                let aut = concat!(env!("CARGO_MANIFEST_DIR"), "/test/mucalc/", stringify!($aut), ".aut");
+                let mucalc = concat!(env!("CARGO_MANIFEST_DIR"), "/test/mucalc/", stringify!($f));
 
-        assert!(is_valid);
+                run_test(aut, mucalc);
+            }
+        )*)* };
+    }
+
+    declare_test! {
+        bridge: [ bridge_receive_17 ],
+        gossips: [ gossips_known_after_7_steps ],
     }
 }
