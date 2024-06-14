@@ -1,7 +1,5 @@
-use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 pub struct IndexedVec<I, T> {
@@ -156,34 +154,6 @@ impl<I: AsIndex, T> Index<I> for IndexedSet<I, T> {
 pub trait AsIndex: Copy {
     fn to_usize(&self) -> usize;
     fn from_usize(index: usize) -> Self;
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NonMaxUsize(NonZeroUsize);
-
-impl NonMaxUsize {
-    pub const fn new(n: usize) -> Self {
-        match NonZeroUsize::new(n + 1) {
-            Some(n) => Self(n),
-            None => panic!(),
-        }
-    }
-
-    pub const fn to_usize(self) -> usize {
-        self.0.get() - 1
-    }
-}
-
-impl Default for NonMaxUsize {
-    fn default() -> Self {
-        Self::new(0)
-    }
-}
-
-impl fmt::Debug for NonMaxUsize {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("NonMaxUsize").field(&self.0).finish()
-    }
 }
 
 macro_rules! new_index {
