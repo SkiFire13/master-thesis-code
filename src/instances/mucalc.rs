@@ -263,6 +263,8 @@ impl<'a> ConvContext<'a> {
 
 #[cfg(test)]
 mod test {
+    use std::rc::Rc;
+
     use crate::strategy::solve::solve;
     use crate::symbolic::compose::EqsFormulas;
 
@@ -280,7 +282,7 @@ mod test {
 
         let init_b = lts.first_state.to_basis_elem();
         let init_v = eqs.last_index().unwrap();
-        let formulas = EqsFormulas::new(&eqs, &funs_formulas);
+        let formulas = Rc::new(EqsFormulas::new(&eqs, &funs_formulas));
 
         let is_valid = solve(init_b, init_v, formulas);
 

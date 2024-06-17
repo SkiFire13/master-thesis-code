@@ -1,0 +1,6 @@
+parity 5;
+0 6 1 4,2 "Africa";
+1 5 1 2,3 "America";
+2 8 0 3,1,0,4 "Asia";
+3 6 0 4,2 "Australia";
+4 7 1 0 "Antarctica";

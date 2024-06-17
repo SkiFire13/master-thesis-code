@@ -1,4 +1,5 @@
 use std::cmp::Reverse;
+use std::rc::Rc;
 
 use either::Either::{Left, Right};
 
@@ -80,7 +81,7 @@ impl<I, P, M, O> NodesData<I, P, M, O> {
 
 pub struct Game {
     // Formulas representing the equations in the system.
-    pub formulas: EqsFormulas,
+    pub formulas: Rc<EqsFormulas>,
     // Data for player 0 nodes.
     pub p0: NodesData<NodeP0Id, P0Pos, P0Moves, NodeP1Id>,
     // Data for player 1 nodes.
@@ -93,7 +94,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(b: BasisElemId, i: VarId, formulas: EqsFormulas) -> Self {
+    pub fn new(b: BasisElemId, i: VarId, formulas: Rc<EqsFormulas>) -> Self {
         let var_count = formulas.var_count();
         let mut game = Self {
             formulas,

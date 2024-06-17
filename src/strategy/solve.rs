@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::index::IndexedVec;
 use crate::strategy::expansion::expand;
 use crate::strategy::game::{Game, GameStrategy, NodeId};
@@ -9,7 +11,7 @@ use crate::symbolic::formula::BasisElemId;
 use super::escape::update_winning_sets;
 use super::game::NodeP0Id;
 
-pub fn solve(b: BasisElemId, i: VarId, moves: EqsFormulas) -> bool {
+pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
     // Special case to ensure there's always a move possible.
     if moves.get(b, i).is_false() {
         return false;

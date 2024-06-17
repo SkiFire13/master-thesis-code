@@ -176,7 +176,7 @@ fn all() {
         let e = e.unwrap();
 
         let name = e.file_name().into_string().unwrap();
-        if name == ".gitignore" {
+        if name == ".gitignore" || name.ends_with(".sol") {
             continue;
         }
 
