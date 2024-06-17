@@ -157,7 +157,7 @@ impl<'a, S: Strategy> RestrictedGraph<'a, S> {
     }
 
     fn remove_edge(&mut self, v: NodeId, u: NodeId) {
-        if self.removed_edges.insert((v, u)) {
+        if self.k_set.contains(&u) && self.removed_edges.insert((v, u)) {
             *self.removed_successors_count.entry(v).or_insert(0) += 1;
         }
     }
