@@ -38,5 +38,5 @@ macro_rules! declare_test {
 
 declare_test! {
     bridge: [ bridge_receive_17 ],
-    gossips: [ gossips_known_after_7_steps ],
+    gossips: [ gossips_known_after_7_steps, gossips_deadlock_liveness ],
 }
