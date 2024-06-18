@@ -38,7 +38,7 @@ impl EqsFormulas {
         let mut moves = Vec::with_capacity(eqs.len() * raw_moves.formulas.len());
         for eq in eqs {
             for b in (0..basis_len).map(BasisElemId) {
-                moves.push(compose_moves(&eq.expr, b, eqs, raw_moves));
+                moves.push(compose_moves(&eq.expr, b, raw_moves));
             }
         }
 
@@ -60,19 +60,19 @@ impl EqsFormulas {
     }
 }
 
-fn compose_moves(expr: &Expr, b: BasisElemId, eqs: &[FixEq], moves: &FunsFormulas) -> Formula {
+fn compose_moves(expr: &Expr, b: BasisElemId, moves: &FunsFormulas) -> Formula {
     match expr {
         Expr::Var(i) => Formula::Atom(b, *i),
-        Expr::And(exprs) => simplify_and(exprs.iter().map(|e| compose_moves(e, b, eqs, moves))),
-        Expr::Or(exprs) => simplify_or(exprs.iter().map(|e| compose_moves(e, b, eqs, moves))),
-        Expr::Fun(fun, args) => subst(moves.get(b, *fun), args, eqs, moves),
+        Expr::And(exprs) => simplify_and(exprs.iter().map(|e| compose_moves(e, b, moves))),
+        Expr::Or(exprs) => simplify_or(exprs.iter().map(|e| compose_moves(e, b, moves))),
+        Expr::Fun(fun, args) => subst(moves.get(b, *fun), args, moves),
     }
 }
 
-fn subst(formula: &Formula, args: &[Expr], eqs: &[FixEq], moves: &FunsFormulas) -> Formula {
+fn subst(formula: &Formula, args: &[Expr], moves: &FunsFormulas) -> Formula {
     match formula {
-        Formula::Atom(b, i) => compose_moves(&args[i.to_usize()], *b, eqs, moves),
-        Formula::And(fs) => simplify_and(fs.iter().map(|f| subst(f, args, eqs, moves))),
-        Formula::Or(fs) => simplify_or(fs.iter().map(|f| subst(f, args, eqs, moves))),
+        Formula::Atom(b, i) => compose_moves(&args[i.to_usize()], *b, moves),
+        Formula::And(fs) => simplify_and(fs.iter().map(|f| subst(f, args, moves))),
+        Formula::Or(fs) => simplify_or(fs.iter().map(|f| subst(f, args, moves))),
     }
 }

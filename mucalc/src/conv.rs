@@ -88,7 +88,7 @@ impl<'a> ConvContext<'a> {
             let formulas = edges
                 .iter()
                 .filter(|&(label, _)| label_matches(label))
-                .map(|(_, node)| Formula::Atom(BasisElemId(node.to_usize()), VarId(0)))
+                .map(|(_, node)| Formula::Atom(node.to_basis_elem(), VarId(0)))
                 .collect();
             match fun_kind {
                 FunKind::Diamond => Formula::Or(formulas),
@@ -99,9 +99,8 @@ impl<'a> ConvContext<'a> {
         let fun = match self.funcs.get_index_of(&(fun_kind, act)) {
             Some(fun) => fun,
             None => {
-                let fs = self.lts.transitions.iter().map(make_formula).collect::<Vec<_>>();
                 self.funcs.insert((fun_kind, act));
-                self.formulas.push(IndexedVec::from(fs))
+                self.formulas.push(self.lts.transitions.iter().map(make_formula).collect())
             }
         };
 

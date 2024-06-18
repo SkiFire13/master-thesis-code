@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 chumsky = "0.9"
+anyhow = { version = "1", features = ["backtrace"] }
 solver = { path = "../solver" }

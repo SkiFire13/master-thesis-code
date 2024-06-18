@@ -1,3 +1,4 @@
+use anyhow::{bail, Context, Result};
 use chumsky::error::Simple;
 use chumsky::primitive::{choice, end, just, none_of};
 use chumsky::recursive::recursive;
@@ -15,33 +16,52 @@ use crate::{Act, Lts, MuCalc, StateId, Var};
 // start_state ::=  number
 // label       ::=  '"' string '"'
 // end_state   ::=  number
-pub fn parse_alt(source: &str) -> Result<Lts, Vec<Simple<char>>> {
-    let des = just("des").padded();
-    let number = text::int(10).map(|n: String| n.parse::<usize>().unwrap()).padded();
-    let comma = just(',').padded();
-    let newline = text::newline();
-    let state = number.map(StateId);
-    let label = none_of('"').repeated().collect::<String>().delimited_by(just('"'), just('"'));
+pub fn parse_alt(source: &str) -> Result<Lts> {
+    let mut lines = source.lines();
 
-    let inner = state.then_ignore(comma).then(number).then_ignore(comma).then(number);
-    let header = des.ignore_then(inner.delimited_by(just('('), just(')'))).then_ignore(newline);
+    let header = lines.next().context("File is empty")?;
+    let header = header.strip_prefix("des (").context("Expected 'des ('")?;
+    let (first_state, header) = header.split_once(',').context("Expected first state")?;
+    let (trans_count, header) = header.split_once(',').context("Expected trans count")?;
+    let state_count = header.strip_suffix(")").context("Expected state count")?;
 
-    let edge = state.then_ignore(comma).then(label).then_ignore(comma).then(state);
-    let edges = edge.delimited_by(just('('), just(')')).separated_by(newline).allow_trailing();
+    let first_state = first_state.parse().context("Expected first state to be a number")?;
+    let trans_count = trans_count.parse().context("Expected trans count to be a number")?;
+    let state_count = state_count.parse().context("Expected state count to be a number")?;
 
-    let parser = header.boxed().then_with(|((first_state, trans_count), states_count)| {
-        edges.clone().exactly(trans_count).map(move |edges| {
-            let mut transitions = IndexedVec::from(vec![Vec::new(); states_count]);
+    if first_state >= state_count {
+        bail!("First state {first_state} doesn't exist")
+    }
+    let first_state = StateId(first_state);
 
-            for ((start_state, label), end_state) in edges {
-                transitions[start_state].push((label, end_state));
-            }
+    let mut transitions = IndexedVec::from(vec![Vec::new(); state_count]);
+    let mut transitions_count = 0usize;
 
-            Lts { first_state, transitions }
-        })
-    });
+    for line in lines {
+        let line = line.strip_prefix('(').context("Expected '('")?;
+        let (start_state, line) = line.split_once(",\"").context("Expected start state")?;
+        let (label, line) = line.split_once("\",").context("Expected label")?;
+        let end_state = line.strip_suffix(')').context("Expected end state")?;
 
-    parser.then_ignore(end()).parse(source)
+        let start_state = start_state.parse().context("Start state is not a number")?;
+        let end_state = end_state.parse().context("End state is not a number")?;
+
+        if start_state >= state_count {
+            bail!("Start state {start_state} doesn't exist")
+        }
+        if end_state >= state_count {
+            bail!("End state {end_state} doesn't exist")
+        }
+
+        transitions[StateId(start_state)].push((label.to_string(), StateId(end_state)));
+        transitions_count += 1;
+    }
+
+    if transitions_count != trans_count {
+        bail!("Wrong number of transitions: got {transitions_count}, expected {trans_count}");
+    }
+
+    Ok(Lts { first_state, transitions })
 }
 
 // <Atom> ::= `tt' | `ff' | `(' <MuCalc> `)'
