@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::index::IndexedVec;
+use crate::local::game::WinState;
 use crate::strategy::{improve, valuation, NodeId, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
@@ -29,10 +30,10 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
         // Later on it will expand the graph, potentially running `update_winning_sets`.
         expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy);
 
-        match () {
-            _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,
-            _ if game.p0.w1.contains(&NodeP0Id::INIT) => return false,
-            _ => {}
+        match game.p0.win[NodeP0Id::INIT] {
+            WinState::Win0 => return true,
+            WinState::Win1 => return false,
+            WinState::Unknown => {}
         }
 
         // Try to improve while possible
@@ -46,10 +47,10 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
         update_winning_sets(&mut game, &profiles, &mut final_strategy, &mut strategy);
 
         // Check if the initial node is definitely winning/losing after the update.
-        match () {
-            _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,
-            _ if game.p0.w1.contains(&NodeP0Id::INIT) => return false,
-            _ => {}
+        match game.p0.win[NodeP0Id::INIT] {
+            WinState::Win0 => return true,
+            WinState::Win1 => return false,
+            WinState::Unknown => {}
         }
     }
 }
