@@ -1,15 +1,14 @@
 use std::rc::Rc;
 
 use crate::index::IndexedVec;
-use crate::strategy::expansion::expand;
-use crate::strategy::game::{Game, GameStrategy, NodeId, NodeP1Id};
-use crate::strategy::improvement::{improve, valuation, PlayProfile};
+use crate::strategy::{improve, valuation, NodeId, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisElemId;
 
 use super::escape::update_winning_sets;
-use super::game::NodeP0Id;
+use super::expansion::expand;
+use super::game::{Game, GameStrategy, NodeP0Id, NodeP1Id};
 
 pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
     // Special case to ensure there's always a move possible.

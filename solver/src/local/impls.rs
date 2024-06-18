@@ -1,11 +1,11 @@
 use either::Either::{Left, Right};
 
 use crate::index::IndexedVec;
-use crate::strategy::game::{Game, GameStrategy, NodeId, NodeKind, NodeP1Id, Player, Relevance};
+use crate::strategy::{
+    GetRelevance, NodeId, ParityGraph, Player, Relevance, Strategy, StrategyMut,
+};
 
-use super::improve::StrategyMut;
-use super::valuation::{Strategy, ValuationGraph};
-use super::GetRelevance;
+use super::game::{Game, GameStrategy, NodeKind, NodeP1Id};
 
 impl<'a> GetRelevance for Game {
     fn relevance_of(&self, u: NodeId) -> Relevance {
@@ -13,7 +13,7 @@ impl<'a> GetRelevance for Game {
     }
 }
 
-impl ValuationGraph for Game {
+impl ParityGraph for Game {
     fn node_count(&self) -> usize {
         self.nodes.len()
     }

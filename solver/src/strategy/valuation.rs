@@ -1,44 +1,10 @@
 use std::cmp::Reverse;
 use std::collections::VecDeque;
-use std::iter;
-
-use either::Either::{Left, Right};
 
 use crate::index::IndexedVec;
-use crate::strategy::game::{NodeId, Player, Relevance};
-use crate::strategy::{NodeMap, Set};
+use crate::local::Set;
 
-use super::{GetRelevance, PlayProfile};
-
-pub trait ValuationGraph: GetRelevance {
-    fn node_count(&self) -> usize;
-
-    fn player_of(&self, n: NodeId) -> Player;
-
-    fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
-    fn predecessors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId>;
-
-    fn nodes_sorted_by_reward(&self) -> impl Iterator<Item = NodeId>;
-}
-
-pub trait Strategy {
-    type Graph: ValuationGraph;
-    fn iter(&self, graph: &Self::Graph) -> impl Iterator<Item = (NodeId, NodeId)>;
-    fn get_direct(&self, n: NodeId, graph: &Self::Graph) -> NodeId;
-    fn get_inverse(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId>;
-
-    fn predecessors_of(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId> {
-        let p0_preds = self.get_inverse(n, graph);
-        let p1_preds = graph.predecessors_of(n).filter(|&n| graph.player_of(n) == Player::P1);
-        p0_preds.chain(p1_preds)
-    }
-    fn successors_of(&self, n: NodeId, graph: &Self::Graph) -> impl Iterator<Item = NodeId> {
-        match graph.player_of(n) {
-            Player::P0 => Left(iter::once(self.get_direct(n, graph))),
-            Player::P1 => Right(graph.successors_of(n)),
-        }
-    }
-}
+use super::{GetRelevance, NodeId, NodeMap, ParityGraph, PlayProfile, Player, Relevance, Strategy};
 
 struct Graph<'a, S: Strategy> {
     game: &'a S::Graph,

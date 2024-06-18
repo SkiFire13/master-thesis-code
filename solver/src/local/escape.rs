@@ -1,8 +1,7 @@
 use crate::index::IndexedVec;
-use crate::strategy::game::Player;
+use crate::strategy::{NodeId, PlayProfile, Player};
 
-use super::game::{Game, GameStrategy, NodeId, WinState};
-use super::improvement::PlayProfile;
+use super::game::{Game, GameStrategy, WinState};
 use super::Set;
 
 pub fn update_winning_sets(

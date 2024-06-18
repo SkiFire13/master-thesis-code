@@ -1,12 +1,12 @@
-[package]
-name = "fp-solver"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
+members = [
+    "solver",
+    "mucalc",
+    "parity"
+]
 
-[profile.test]
-opt-level = 2
-
-[dependencies]
-either = "1.11"
-indexmap = "2.2.6"
-chumsky = "0.9"
+# [dependencies]
+# either = "1.11"
+# indexmap = "2.2.6"
+# chumsky = "0.9"

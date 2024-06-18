@@ -156,6 +156,7 @@ pub trait AsIndex: Copy {
     fn from_usize(index: usize) -> Self;
 }
 
+#[macro_export]
 macro_rules! new_index {
     ($(#[$($meta:tt)*])* $vis:vis index $ty:ident) => {
         $(#[$($meta)*])*
@@ -173,7 +174,7 @@ macro_rules! new_index {
         }
     };
 }
-pub(crate) use new_index;
+pub use new_index;
 
 #[cfg(test)]
 mod test {

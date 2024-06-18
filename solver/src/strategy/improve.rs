@@ -1,12 +1,6 @@
 use crate::index::IndexedVec;
-use crate::strategy::game::NodeId;
 
-use super::profile::PlayProfile;
-use super::valuation::{Strategy, ValuationGraph};
-
-pub trait StrategyMut: Strategy {
-    fn update_each(&mut self, graph: &Self::Graph, f: impl FnMut(NodeId, NodeId) -> NodeId);
-}
+use super::{NodeId, ParityGraph, PlayProfile, StrategyMut};
 
 pub fn improve<S: StrategyMut>(
     graph: &S::Graph,

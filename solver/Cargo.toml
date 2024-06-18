@@ -1,0 +1,11 @@
+[package]
+name = "solver"
+version = "0.1.0"
+edition = "2021"
+
+# [lib]
+# crate-type = ["dylib"]
+
+[dependencies]
+indexmap = "2.2.6"
+either = "1.11"

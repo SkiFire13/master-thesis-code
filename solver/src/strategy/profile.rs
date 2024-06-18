@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::strategy::game::{NodeId, Player, Relevance, Reward};
+use super::{GetRelevance, NodeId, Player, Reward};
 
 #[derive(Clone, Debug, Default)]
 pub struct PlayProfile {
@@ -45,13 +45,5 @@ impl PlayProfile {
         };
 
         cmp_most_relevant().then_with(cmp_relevant_before).then_with(cmp_count_before)
-    }
-}
-
-pub trait GetRelevance {
-    fn relevance_of(&self, u: NodeId) -> Relevance;
-
-    fn reward_of(&self, u: NodeId) -> Reward {
-        self.relevance_of(u).reward()
     }
 }

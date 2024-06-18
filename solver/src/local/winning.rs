@@ -1,7 +1,7 @@
 use crate::index::IndexedVec;
-use crate::strategy::game::WinState;
+use crate::strategy::NodeId;
 
-use super::game::{Game, GameStrategy, NodeId, NodeP0Id, NodeP1Id};
+use super::game::{Game, GameStrategy, NodeP0Id, NodeP1Id, WinState};
 
 impl Game {
     pub fn set_p0_losing(

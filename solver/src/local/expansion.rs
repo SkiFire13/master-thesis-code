@@ -3,11 +3,10 @@ use std::cmp::Ordering;
 use indexmap::IndexSet;
 
 use crate::index::{AsIndex, IndexedVec};
-use crate::strategy::game::{Inserted, NodeKind, NodeP1Id};
+use crate::strategy::{NodeId, PlayProfile, Player};
 
 use super::escape::update_winning_sets;
-use super::game::{Game, GameStrategy, NodeId, Player};
-use super::improvement::PlayProfile;
+use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
 
 pub fn expand(
     game: &mut Game,

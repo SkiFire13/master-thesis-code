@@ -3,12 +3,10 @@ use std::cmp::Reverse;
 use indexmap::IndexSet;
 
 use crate::index::{AsIndex, IndexedVec};
-use crate::instances::parity::parse_parity_game;
-use crate::strategy::game::{NodeId, Player, Relevance};
-use crate::strategy::NodeMap;
 
-use super::valuation::{valuation, Strategy, ValuationGraph};
-use super::{GetRelevance, PlayProfile};
+use super::{
+    valuation, GetRelevance, NodeId, NodeMap, ParityGraph, PlayProfile, Player, Relevance, Strategy,
+};
 
 #[derive(Default)]
 struct TestGame {
@@ -30,7 +28,7 @@ impl GetRelevance for TestGame {
     }
 }
 
-impl ValuationGraph for TestGame {
+impl ParityGraph for TestGame {
     fn node_count(&self) -> usize {
         self.players.len()
     }
@@ -69,14 +67,37 @@ impl Strategy for TestStrategy {
 }
 
 fn parse_test(source: &str) -> TestGame {
-    let pg = parse_parity_game(source).unwrap();
+    pub struct Node {
+        pub id: usize,
+        pub relevance: usize,
+        pub player: Player,
+        pub successors: Vec<usize>,
+    }
 
-    let relevance = pg.nodes.iter().map(|n| n.relevance).collect::<IndexedVec<_, _>>();
-    let players = pg.nodes.iter().map(|n| n.player).collect::<IndexedVec<_, _>>();
+    let nodes = source
+        .lines()
+        .skip(1)
+        .map(|line| {
+            let rest = line.strip_suffix(';').unwrap();
+            let (id, rest) = rest.split_once(' ').unwrap();
+            let (relevance, rest) = rest.split_once(' ').unwrap();
+            let (player, rest) = rest.split_once(' ').unwrap();
+            let (successors, _) = rest.split_once(' ').unwrap_or((rest, ""));
 
-    let mut successors = (0..pg.nodes.len()).map(|_| Vec::new()).collect::<IndexedVec<_, _>>();
-    let mut predecessors = (0..pg.nodes.len()).map(|_| Vec::new()).collect::<IndexedVec<_, _>>();
-    for n in &pg.nodes {
+            let id = id.parse().unwrap();
+            let relevance = relevance.parse().unwrap();
+            let player = if player == "0" { Player::P0 } else { Player::P1 };
+            let successors = successors.split(',').map(|s| s.parse().unwrap()).collect::<Vec<_>>();
+            Node { id, relevance, player, successors }
+        })
+        .collect::<Vec<_>>();
+
+    let relevance = nodes.iter().map(|n| n.relevance).collect::<IndexedVec<_, _>>();
+    let players = nodes.iter().map(|n| n.player).collect::<IndexedVec<_, _>>();
+
+    let mut successors = (0..nodes.len()).map(|_| Vec::new()).collect::<IndexedVec<_, _>>();
+    let mut predecessors = (0..nodes.len()).map(|_| Vec::new()).collect::<IndexedVec<_, _>>();
+    for n in &nodes {
         for &s in &n.successors {
             let (n, s) = (NodeId(n.id), NodeId(s));
             successors[n].push(s);
@@ -162,7 +183,7 @@ macro_rules! declare_test {
         $(
             #[test]
             fn $name() {
-                let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/test/pg/", stringify!($name)));
+                let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../parity/tests/", stringify!($name)));
                 let game = parse_test(input);
                 run_valuation_test(&game);
             }
@@ -180,7 +201,7 @@ declare_test! {
 
 #[test]
 fn all() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test/pg/");
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../parity/tests/");
     for e in std::fs::read_dir(dir).unwrap() {
         let e = e.unwrap();
 

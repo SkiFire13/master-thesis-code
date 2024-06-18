@@ -1,17 +1,15 @@
-use std::cmp::Reverse;
 use std::rc::Rc;
 
 use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
+use crate::strategy::{NodeId, Player, Relevance};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::{BasisElemId, Formula};
 use crate::symbolic::moves::{P0Moves, P0Pos, P1Moves, P1Pos};
 
 use super::Set;
-
-new_index!(pub index NodeId);
 
 impl NodeId {
     pub const W0: NodeId = NodeId(0);
@@ -71,12 +69,6 @@ pub struct NodesData<I, P, M, O> {
     pub w0: Set<I>,
     // Set of this player's nodes where player 1 wins
     pub w1: Set<I>,
-}
-
-impl<I, P, M, O> NodesData<I, P, M, O> {
-    pub fn len(&self) -> usize {
-        self.pos.len()
-    }
 }
 
 pub struct Game {
@@ -335,46 +327,6 @@ impl GameStrategy {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Player {
-    P0,
-    P1,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Relevance {
-    // Actual priority
-    pub priority: usize,
-    // Used as tiebreaker
-    pub node: NodeId,
-}
-
-impl Relevance {
-    pub fn player(self) -> Player {
-        match self.priority % 2 {
-            0 => Player::P0,
-            _ => Player::P1,
-        }
-    }
-
-    pub fn reward(self) -> Reward {
-        match self.player() {
-            Player::P0 => Reward::P0(self),
-            Player::P1 => Reward::P1(Reverse(self)),
-        }
-    }
-}
-
-// Note: order is important here. Reward in favour of P1 are considered less
-// than rewards in favour of P0. Also, relevance for P1 rewards are considered
-// reversed (bigger relevance is worse for P0, and thus less).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Reward {
-    P1(Reverse<Relevance>),
-    Neutral,
-    P0(Relevance),
-}
-
 impl<I, P, M, O> Default for NodesData<I, P, M, O> {
     fn default() -> Self {
         Self {
@@ -387,57 +339,6 @@ impl<I, P, M, O> Default for NodesData<I, P, M, O> {
             win: Default::default(),
             w0: Default::default(),
             w1: Default::default(),
-        }
-    }
-}
-
-pub fn verify_game(game: &Game) {
-    for (p0, p1s) in game.p0.succs.enumerate() {
-        for &p1 in p1s {
-            assert!(game.p1.preds[p1].contains(&p0));
-        }
-
-        let has_succs = !p1s.is_empty();
-        let is_win = game.p0.w0.contains(&p0);
-        let is_lose = game.p0.w1.contains(&p0);
-        assert!(has_succs || is_win || is_lose);
-        assert!(!(has_succs && is_win));
-        assert!(!(has_succs && is_lose));
-        assert!(!(is_win && is_lose));
-
-        match game.p0.win[p0] {
-            WinState::Unknown => {}
-            WinState::Win0 => assert!(is_win),
-            WinState::Win1 => assert!(is_lose),
-        }
-    }
-    for (p0, p1s) in game.p0.preds.enumerate() {
-        for &p1 in p1s {
-            assert!(game.p1.succs[p1].contains(&p0));
-        }
-    }
-    for (p1, p0s) in game.p1.succs.enumerate() {
-        for &p0 in p0s {
-            assert!(game.p0.preds[p0].contains(&p1));
-        }
-
-        let has_succs = !p0s.is_empty();
-        let is_win = game.p1.w1.contains(&p1);
-        let is_lose = game.p1.w0.contains(&p1);
-        assert!(has_succs || is_win || is_lose);
-        assert!(!(has_succs && is_win));
-        assert!(!(has_succs && is_lose));
-        assert!(!(is_win && is_lose));
-
-        match game.p1.win[p1] {
-            WinState::Unknown => {}
-            WinState::Win0 => assert!(is_lose),
-            WinState::Win1 => assert!(is_win),
-        }
-    }
-    for (p1, p0s) in game.p1.preds.enumerate() {
-        for &p0 in p0s {
-            assert!(game.p0.succs[p0].contains(&p1));
         }
     }
 }
