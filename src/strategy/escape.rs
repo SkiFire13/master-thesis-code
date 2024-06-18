@@ -8,7 +8,7 @@ use super::Set;
 pub fn update_winning_sets(
     game: &mut Game,
     profiles: &IndexedVec<NodeId, PlayProfile>,
-    final_strategy: &IndexedVec<NodeId, NodeId>,
+    final_strategy: &mut IndexedVec<NodeId, NodeId>,
     strategy: &mut GameStrategy,
 ) {
     // Gather the nodes that have not been fully explored yet.
@@ -18,9 +18,6 @@ pub fn update_winning_sets(
 
     // Find nodes that are transitively reach unexplored ones, assuming the optimal strategy for the opponent.
     let escape_set = find_escape_set(incomplete, |n| game.predecessors_of(n), final_strategy);
-
-    // TODO: make these loops generic?
-    // TODO: Maybe avoid iterating over all nodes?
 
     for p0 in game.p0.ids.indexes() {
         let n0 = game.p0.ids[p0];
@@ -32,7 +29,7 @@ pub fn update_winning_sets(
             continue;
         }
 
-        game.set_p0_losing(p0, strategy);
+        game.set_p0_losing(p0, strategy, final_strategy);
     }
 
     for p1 in game.p1.ids.indexes() {
@@ -45,7 +42,7 @@ pub fn update_winning_sets(
             continue;
         }
 
-        game.set_p1_losing(p1, strategy);
+        game.set_p1_losing(p1, strategy, final_strategy);
     }
 }
 

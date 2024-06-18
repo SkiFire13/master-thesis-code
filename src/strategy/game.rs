@@ -150,17 +150,21 @@ impl Game {
             NodeKind::L1 => Left([NodeId::W0]),
             NodeKind::W0 => Left([NodeId::L1]),
             NodeKind::W1 => Left([NodeId::L0]),
-            // Successors of a p0/p1 node are either those recorder
-            // or the special nodes if they are definitely winning for some players.
+            // Successors of a p0/p1 node are either:
+            // - special nodes if the winner has been recorded;
+            // - winning for the opponent if the node has no successors;
+            // - the successors recorded otherwise.
             NodeKind::P0(n) => match self.p0.win[n] {
-                WinState::Unknown => Right(Left(self.p0.succs[n].iter().map(|&n| self.p1.ids[n]))),
                 WinState::Win0 => Left([NodeId::L1]),
                 WinState::Win1 => Left([NodeId::W1]),
+                WinState::Unknown if self.p0.succs[n].is_empty() => Left([NodeId::W1]),
+                WinState::Unknown => Right(Left(self.p0.succs[n].iter().map(|&n| self.p1.ids[n]))),
             },
             NodeKind::P1(n) => match self.p1.win[n] {
-                WinState::Unknown => Right(Right(self.p1.succs[n].iter().map(|&n| self.p0.ids[n]))),
                 WinState::Win0 => Left([NodeId::W0]),
                 WinState::Win1 => Left([NodeId::L0]),
+                WinState::Unknown if self.p1.succs[n].is_empty() => Left([NodeId::W0]),
+                WinState::Unknown => Right(Right(self.p1.succs[n].iter().map(|&n| self.p0.ids[n]))),
             },
         }
         .into_iter()
@@ -265,6 +269,13 @@ impl<I: Copy> Inserted<I> {
     pub fn id(&self) -> I {
         match *self {
             Self::New(i) | Self::Existing(i) => i,
+        }
+    }
+
+    pub fn map<O>(&self, f: impl FnOnce(I) -> O) -> Inserted<O> {
+        match *self {
+            Inserted::New(i) => Inserted::New(f(i)),
+            Inserted::Existing(i) => Inserted::Existing(f(i)),
         }
     }
 }
@@ -376,6 +387,57 @@ impl<I, P, M, O> Default for NodesData<I, P, M, O> {
             win: Default::default(),
             w0: Default::default(),
             w1: Default::default(),
+        }
+    }
+}
+
+pub fn verify_game(game: &Game) {
+    for (p0, p1s) in game.p0.succs.enumerate() {
+        for &p1 in p1s {
+            assert!(game.p1.preds[p1].contains(&p0));
+        }
+
+        let has_succs = !p1s.is_empty();
+        let is_win = game.p0.w0.contains(&p0);
+        let is_lose = game.p0.w1.contains(&p0);
+        assert!(has_succs || is_win || is_lose);
+        assert!(!(has_succs && is_win));
+        assert!(!(has_succs && is_lose));
+        assert!(!(is_win && is_lose));
+
+        match game.p0.win[p0] {
+            WinState::Unknown => {}
+            WinState::Win0 => assert!(is_win),
+            WinState::Win1 => assert!(is_lose),
+        }
+    }
+    for (p0, p1s) in game.p0.preds.enumerate() {
+        for &p1 in p1s {
+            assert!(game.p1.succs[p1].contains(&p0));
+        }
+    }
+    for (p1, p0s) in game.p1.succs.enumerate() {
+        for &p0 in p0s {
+            assert!(game.p0.preds[p0].contains(&p1));
+        }
+
+        let has_succs = !p0s.is_empty();
+        let is_win = game.p1.w1.contains(&p1);
+        let is_lose = game.p1.w0.contains(&p1);
+        assert!(has_succs || is_win || is_lose);
+        assert!(!(has_succs && is_win));
+        assert!(!(has_succs && is_lose));
+        assert!(!(is_win && is_lose));
+
+        match game.p1.win[p1] {
+            WinState::Unknown => {}
+            WinState::Win0 => assert!(is_lose),
+            WinState::Win1 => assert!(is_win),
+        }
+    }
+    for (p1, p0s) in game.p1.preds.enumerate() {
+        for &p0 in p0s {
+            assert!(game.p0.succs[p0].contains(&p1));
         }
     }
 }

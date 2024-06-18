@@ -1,121 +1,174 @@
-use std::collections::HashSet;
+use std::cmp::Ordering;
 
-use crate::index::IndexedVec;
-use crate::strategy::game::{NodeId, Player};
+use indexmap::IndexSet;
 
-use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
+use crate::index::{AsIndex, IndexedVec};
+use crate::strategy::game::{Inserted, NodeKind, NodeP1Id};
+
+use super::escape::update_winning_sets;
+use super::game::{Game, GameStrategy, NodeId, Player};
 use super::improvement::PlayProfile;
 
 pub fn expand(
     game: &mut Game,
-    profiles: &IndexedVec<NodeId, PlayProfile>,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
+    final_strategy: &mut IndexedVec<NodeId, NodeId>,
     strategy: &mut GameStrategy,
 ) {
-    let mut a = e1(game, profiles);
-    let mut new_a = Vec::new();
-    let mut seen = HashSet::new();
+    loop {
+        let start = match profiles[NodeId::INIT].winning(game) {
+            Player::P0 => game.p1.incomplete.first().map(|&p1| game.p1.ids[p1]),
+            Player::P1 => game.p0.incomplete.first().map(|&p0| game.p0.ids[p0]),
+        };
 
-    while !a.is_empty() {
-        for v in a.drain(..) {
-            e2(game, v, profiles, strategy, |n| {
-                debug_assert!(seen.insert(n));
-                new_a.push(n);
-            });
-        }
+        // If there's no node to expand then update the winning sets.
+        let Some(start) = start else {
+            update_winning_sets(game, &profiles, final_strategy, strategy);
+            return;
+        };
 
-        std::mem::swap(&mut a, &mut new_a);
-    }
-}
+        // Expand the initial node and save its new successor for later.
+        let Some(mut next) = expand_one(start, game, strategy) else {
+            continue;
+        };
+        let start_next = next.id();
 
-fn e1(game: &mut Game, profiles: &IndexedVec<NodeId, PlayProfile>) -> Vec<NodeId> {
-    // TODO: This should select an element of the exterior, not one that can reach the exterior.
-    // In practice this shouldn't matter though.
-    match profiles[NodeId::INIT].winning(game) {
-        Player::P0 => {
-            let p1 = game.p1.incomplete.first().copied().unwrap();
-            let n = game.p1.ids[p1];
-            vec![n]
-        }
-        Player::P1 => {
-            let p0 = game.p0.incomplete.first().copied().unwrap();
-            let n = game.p0.ids[p0];
-            vec![n]
-        }
-    }
-}
+        // Expand one step at a time until an existing node or a loop are found.
+        let mut expanded = IndexSet::new();
+        let stop = loop {
+            let n = match next {
+                Inserted::New(n) => n,
+                Inserted::Existing(n) => break n,
+            };
+            expanded.insert(n);
+            next = expand_one(n, game, strategy).unwrap();
+            final_strategy.push(next.id());
+        };
 
-fn e2(
-    game: &mut Game,
-    w: NodeId,
-    profiles: &IndexedVec<NodeId, PlayProfile>,
-    strategy: &mut GameStrategy,
-    mut add: impl FnMut(NodeId),
-) {
-    match game.resolve(w) {
-        NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
-        NodeKind::P0(n) => {
-            // Handle case where node never had any moves.
-            if game.formula_of(n).is_false() {
-                game.p0.incomplete.remove(&n);
-                strategy.try_add(n, NodeP1Id::W1);
-                game.set_p0_losing(n, strategy);
-                return;
+        // Incrementally compute the play profiles of the expanded nodes
+        update_profiles(stop, &expanded, game, profiles);
+
+        // If the valuation is improve then update the strategy (if start is a p0 node) and return,
+        // otherwise this expansion doesn't improve anything so expand again.
+        let ord = profiles[final_strategy[start]].cmp(&profiles[start_next], game);
+        let player = game.player_of(start);
+        if let (Ordering::Less, Player::P0) | (Ordering::Greater, Player::P1) = (ord, player) {
+            if let NodeKind::P0(p0) = game.resolve(start) {
+                let p1 = match game.resolve(start_next) {
+                    NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
+                    NodeKind::L1 => NodeP1Id::L1,
+                    NodeKind::W1 => NodeP1Id::W1,
+                    NodeKind::P1(p1) => p1,
+                };
+                strategy.update(p0, p1);
+                final_strategy[start] = start_next;
             }
 
-            // TODO: use profiles to avoid non-improving moves.
-            _ = profiles;
+            return;
+        }
+    }
+}
 
-            let Some(pos) = game.p0.moves[n].next() else {
-                game.p0.incomplete.remove(&n);
-                return;
+fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option<Inserted<NodeId>> {
+    match game.resolve(n) {
+        NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
+        NodeKind::P0(p0) => {
+            // Handle case where node never had any moves.
+            if game.formula_of(p0).is_false() {
+                game.p0.incomplete.remove(&p0);
+                game.p0.w1.insert(p0);
+                strategy.try_add(p0, NodeP1Id::W1);
+                return Some(Inserted::Existing(NodeId::W1));
+            }
+
+            let Some(pos) = game.p0.moves[p0].next() else {
+                game.p0.incomplete.remove(&p0);
+                return None;
             };
 
             let inserted = game.insert_p1(pos);
-            game.insert_p0_to_p1_edge(n, inserted.id());
-            strategy.try_add(n, inserted.id());
+            game.insert_p0_to_p1_edge(p0, inserted.id());
+            strategy.try_add(p0, inserted.id());
 
-            if let Inserted::New(p1) = inserted {
-                add(game.p1.ids[p1]);
-            }
+            Some(inserted.map(|p1| game.p1.ids[p1]))
         }
-        NodeKind::P1(n) => {
+        NodeKind::P1(p1) => {
             // Handle case where node never had any moves.
-            if game.p1.pos[n].moves.is_empty() {
-                game.p1.incomplete.remove(&n);
-                game.set_p1_losing(n, strategy);
-                return;
+            if game.p1.pos[p1].moves.is_empty() {
+                game.p1.incomplete.remove(&p1);
+                game.p1.w0.insert(p1);
+                return Some(Inserted::Existing(NodeId::W0));
             }
 
-            // TODO: Make this an input setting?
-            // Toggles symmetric and asymmetric algorithm
-            const SYMMETRIC: bool = true;
+            let Some(pos) = game.p1.moves[p1].next() else {
+                game.p1.incomplete.remove(&p1);
+                return None;
+            };
 
-            if SYMMETRIC {
-                // Symmetric version: consider next position
-                let Some(pos) = game.p1.moves[n].next() else {
-                    game.p1.incomplete.remove(&n);
-                    return;
-                };
+            let inserted = game.insert_p0(pos);
+            game.insert_p1_to_p0_edge(p1, inserted.id());
 
-                let inserted = game.insert_p0(pos);
-                game.insert_p1_to_p0_edge(n, inserted.id());
+            Some(inserted.map(|p0| game.p0.ids[p0]))
+        }
+    }
+}
 
-                if let Inserted::New(p0) = inserted {
-                    add(game.p0.ids[p0]);
-                }
-            } else {
-                // Asymmetric version: iterate over all remaining moves
-                for pos in std::mem::take(&mut game.p1.moves[n]) {
-                    let inserted = game.insert_p0(pos);
-                    game.insert_p1_to_p0_edge(n, inserted.id());
+fn update_profiles(
+    stop: NodeId,
+    expanded: &IndexSet<NodeId>,
+    game: &Game,
+    profiles: &mut IndexedVec<NodeId, PlayProfile>,
+) {
+    let stop_is_expanded = stop.to_usize() >= profiles.len();
+    profiles.resize_with(game.nodes.len(), PlayProfile::default);
 
-                    if let Inserted::New(p0) = inserted {
-                        add(game.p0.ids[p0]);
-                    }
-                }
+    let updated_profile = |n, prev_profile: &PlayProfile| {
+        let mut profile = prev_profile.clone();
 
-                game.p1.incomplete.remove(&n);
-            }
+        // Update relevant_before
+        let n_rel = game.relevance_of(n);
+        if n_rel > game.relevance_of(prev_profile.most_relevant) {
+            let pos = profile.relevant_before.partition_point(|&m| game.relevance_of(m) > n_rel);
+            profile.relevant_before.insert(pos, n);
+        }
+
+        // Update count_before
+        profile.count_before += 1;
+
+        profile
+    };
+
+    if stop_is_expanded {
+        // The expansion created a cycle within itself; find it and the most relevant node of the cycle.
+        let cycle_start = expanded.get_index_of(&stop).unwrap();
+        let most_relevant =
+            expanded[cycle_start..].iter().copied().max_by_key(|&n| game.relevance_of(n)).unwrap();
+        let most_relevant_index = expanded.get_index_of(&most_relevant).unwrap();
+
+        // Set the profile of the most relevant node of the cycle
+        profiles[most_relevant].most_relevant = most_relevant;
+
+        // Set the profile of the expanded nodes before the cycle.
+        let mut next = most_relevant;
+        for &n in expanded[..most_relevant_index].iter().rev() {
+            profiles[n] = updated_profile(n, &profiles[next]);
+            next = n;
+        }
+
+        // Set profiles of the expanded nodes in the cycle.
+        let mut next = stop;
+        for &n in expanded[most_relevant_index + 1..].iter().rev() {
+            // We're in the loop so there's no node more relevant than `most_relevant`
+            profiles[n].most_relevant = most_relevant;
+            profiles[n].count_before = profiles[next].count_before + 1;
+            next = n;
+        }
+    } else {
+        // The expansion reached the existing graph, update linearly the play profiles
+        let mut next = stop;
+        for &n in expanded.iter().rev() {
+            profiles[n] = updated_profile(n, &profiles[next]);
+            next = n;
         }
     }
 }

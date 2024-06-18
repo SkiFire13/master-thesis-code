@@ -2,13 +2,13 @@ use std::cmp::Reverse;
 
 use indexmap::IndexSet;
 
-use crate::index::IndexedVec;
+use crate::index::{AsIndex, IndexedVec};
 use crate::instances::parity::parse_parity_game;
 use crate::strategy::game::{NodeId, Player, Relevance};
 use crate::strategy::NodeMap;
 
 use super::valuation::{valuation, Strategy, ValuationGraph};
-use super::GetRelevance;
+use super::{GetRelevance, PlayProfile};
 
 #[derive(Default)]
 struct TestGame {
@@ -106,17 +106,26 @@ fn run_valuation_test(game: &TestGame) {
 
     let (profiles, final_strategy) = valuation(game, &strategy);
 
-    for n in (0..game.players.len()).map(NodeId) {
+    verify_valuation(&strategy, &profiles, &final_strategy, &game);
+}
+
+pub fn verify_valuation<S: Strategy>(
+    strategy: &S,
+    profiles: &IndexedVec<NodeId, PlayProfile>,
+    final_strategy: &IndexedVec<NodeId, NodeId>,
+    graph: &S::Graph,
+) {
+    for n in (0..graph.node_count()).map(NodeId) {
         let profile = &profiles[n];
         let next = final_strategy[n];
 
-        assert!(next < NodeId(game.players.len()));
+        debug_assert!(next.to_usize() < graph.node_count());
 
         // Check that the final strategy is consistent with the given p0 strategy
         // and the successors of p1.
-        match game.players[n] {
-            Player::P0 => assert_eq!(strategy.direct[&n], next),
-            Player::P1 => assert!(game.successors[n].contains(&next), "n={n:?} succ={next:?}"),
+        match graph.player_of(n) {
+            Player::P0 => assert_eq!(strategy.get_direct(n, graph), next),
+            Player::P1 => assert!(graph.successors_of(n).any(|n| n == next), "{n:?} {next:?}"),
         }
 
         // Play the game with the final strategy until a node is seen twice.
@@ -125,7 +134,7 @@ fn run_valuation_test(game: &TestGame) {
             curr = final_strategy[curr];
         }
 
-        let rel_of = |n| game.relevance_of(n);
+        let rel_of = |n| graph.relevance_of(n);
 
         // Find the start of the loop.
         let start = seen.get_index_of(&curr).unwrap();

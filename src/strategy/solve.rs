@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::index::IndexedVec;
 use crate::strategy::expansion::expand;
-use crate::strategy::game::{Game, GameStrategy, NodeId};
+use crate::strategy::game::{Game, GameStrategy, NodeId, NodeP1Id};
 use crate::strategy::improvement::{improve, valuation, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
@@ -20,22 +20,15 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
     let mut game = Game::new(b, i, moves);
     let mut strategy = GameStrategy::new();
 
-    // Initial expansion
-    expand(&mut game, &initial_play_profiles(), &mut strategy);
+    // Dummy initial values
+    strategy.try_add(NodeP0Id::INIT, NodeP1Id::W1);
+    let mut profiles = initial_play_profiles();
+    let mut final_strategy = initial_final_strategy();
 
     loop {
-        // Try to improve while possible
-        let (profiles, final_strategy) = loop {
-            let (profiles, final_strategy) = valuation(&game, &strategy);
-            let improved = improve(&game, &mut strategy, &profiles);
-
-            if !improved {
-                break (profiles, final_strategy);
-            }
-        };
-
-        // Update definitely winning/losing nodes.
-        update_winning_sets(&mut game, &profiles, &final_strategy, &mut strategy);
+        // Initially this will perform the initial expansion and set a proper successor for INIT.
+        // Later on it will expand the graph, potentially running `update_winning_sets`.
+        expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy);
 
         match () {
             _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,
@@ -43,18 +36,37 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
             _ => {}
         }
 
-        // We still don't know whether the initial node is definitely winning/losing
-        // so expand again the graph.
-        expand(&mut game, &profiles, &mut strategy);
+        // Try to improve while possible
+        let mut improved = true;
+        while improved {
+            (profiles, final_strategy) = valuation(&game, &strategy);
+            improved = improve(&game, &mut strategy, &profiles);
+        }
+
+        // Update definitely winning/losing nodes.
+        update_winning_sets(&mut game, &profiles, &mut final_strategy, &mut strategy);
+
+        // Check if the initial node is definitely winning/losing after the update.
+        match () {
+            _ if game.p0.w0.contains(&NodeP0Id::INIT) => return true,
+            _ if game.p0.w1.contains(&NodeP0Id::INIT) => return false,
+            _ => {}
+        }
     }
 }
 
 fn initial_play_profiles() -> IndexedVec<NodeId, PlayProfile> {
-    let w0 =
-        || PlayProfile { most_relevant: NodeId::W0, relevant_before: Vec::new(), count_before: 0 };
-    let w1 =
-        || PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 0 };
-
     // Corresponding nodes are: W0, L0, W1, L1, INIT
-    IndexedVec::from(vec![w0(), w1(), w1(), w0(), w1()])
+    IndexedVec::from(vec![
+        PlayProfile { most_relevant: NodeId::L1, relevant_before: Vec::new(), count_before: 1 },
+        PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 1 },
+        PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 0 },
+        PlayProfile { most_relevant: NodeId::L1, relevant_before: Vec::new(), count_before: 0 },
+        PlayProfile { most_relevant: NodeId::W1, relevant_before: Vec::new(), count_before: 1 },
+    ])
+}
+
+fn initial_final_strategy() -> IndexedVec<NodeId, NodeId> {
+    // Corresponding nodes are: W0, L0, W1, L1, INIT
+    IndexedVec::from(vec![NodeId::L1, NodeId::W1, NodeId::L0, NodeId::W0, NodeId::W1])
 }
