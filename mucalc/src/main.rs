@@ -14,8 +14,7 @@ fn main() {
     let mucalc_file = std::fs::read_to_string(mucalc_path).expect("Failed to read mucalc file");
 
     let lts = parse_alt(&alt_file).expect("Failed to parse alt file");
-    let mucalc = parse_mucalc(lts.labels.iter().map(|s| &**s), &mucalc_file)
-        .expect("Failed to parse mucalc file");
+    let mucalc = parse_mucalc(&mucalc_file).expect("Failed to parse mucalc file");
 
     let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, &lts);
     let formulas = Rc::new(EqsFormulas::new(&eqs, &funs_formulas));

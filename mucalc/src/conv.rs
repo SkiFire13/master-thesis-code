@@ -5,7 +5,7 @@ use solver::symbolic::compose::FunsFormulas;
 use solver::symbolic::eq::{Expr, FixEq, FixType, FunId, VarId};
 use solver::symbolic::formula::{BasisElemId, Formula};
 
-use crate::{Act, LabelId, Lts, MuCalc, StateId, Var};
+use crate::{Act, Lts, MuCalc, StateId, Var};
 
 impl StateId {
     pub fn to_basis_elem(self) -> BasisElemId {
@@ -77,17 +77,17 @@ impl<'a> ConvContext<'a> {
     }
 
     fn conv_modal(&mut self, fun_kind: FunKind, act: &'a Act, e: &'a MuCalc) -> Expr {
-        let label_matches = |label| match act {
+        let label_matches = |label: &str| match act {
             Act::True => true,
-            Act::Label(x) if x == &self.lts.labels[label] => true,
-            Act::NotLabel(x) if x != &self.lts.labels[label] => true,
+            Act::Label(x) if x == label => true,
+            Act::NotLabel(x) if x != label => true,
             _ => false,
         };
 
-        let make_formula = |edges: &Vec<(LabelId, StateId)>| {
+        let make_formula = |edges: &Vec<(String, StateId)>| {
             let formulas = edges
                 .iter()
-                .filter(|&&(label, _)| label_matches(label))
+                .filter(|&(label, _)| label_matches(label))
                 .map(|(_, node)| Formula::Atom(BasisElemId(node.to_usize()), VarId(0)))
                 .collect();
             match fun_kind {

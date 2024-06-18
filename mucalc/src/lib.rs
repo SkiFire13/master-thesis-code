@@ -1,4 +1,4 @@
-use solver::index::{IndexedSet, IndexedVec};
+use solver::index::IndexedVec;
 use solver::new_index;
 
 mod conv;
@@ -15,8 +15,7 @@ new_index!(pub index LabelId);
 
 pub struct Lts {
     pub first_state: StateId,
-    pub labels: IndexedSet<LabelId, String>,
-    pub transitions: IndexedVec<StateId, Vec<(LabelId, StateId)>>,
+    pub transitions: IndexedVec<StateId, Vec<(String, StateId)>>,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]

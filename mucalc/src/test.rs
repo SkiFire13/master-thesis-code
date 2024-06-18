@@ -9,9 +9,8 @@ fn run_test(aut_path: &str, mucalc_path: &str) {
     let aut = std::fs::read_to_string(aut_path).unwrap();
     let lts = parse_alt(&aut).unwrap();
 
-    let labels = lts.labels.iter().map(|s| &**s);
     let mucalc = std::fs::read_to_string(mucalc_path).unwrap();
-    let parse_mu_calc = parse_mucalc(labels, &mucalc);
+    let parse_mu_calc = parse_mucalc(&mucalc);
     let mucalc = parse_mu_calc.unwrap();
 
     let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, &lts);

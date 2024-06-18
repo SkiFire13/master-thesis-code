@@ -3,7 +3,7 @@ use chumsky::primitive::{choice, end, just, none_of};
 use chumsky::recursive::recursive;
 use chumsky::text::{self, TextParser};
 use chumsky::Parser;
-use solver::index::{IndexedSet, IndexedVec};
+use solver::index::IndexedVec;
 
 use crate::{Act, Lts, MuCalc, StateId, Var};
 
@@ -31,15 +31,13 @@ pub fn parse_alt(source: &str) -> Result<Lts, Vec<Simple<char>>> {
 
     let parser = header.boxed().then_with(|((first_state, trans_count), states_count)| {
         edges.clone().exactly(trans_count).map(move |edges| {
-            let mut labels = IndexedSet::default();
             let mut transitions = IndexedVec::from(vec![Vec::new(); states_count]);
 
             for ((start_state, label), end_state) in edges {
-                let (label_id, _) = labels.insert_full(label);
-                transitions[start_state].push((label_id, end_state));
+                transitions[start_state].push((label, end_state));
             }
 
-            Lts { first_state, labels, transitions }
+            Lts { first_state, transitions }
         })
     });
 
@@ -58,18 +56,15 @@ pub fn parse_alt(source: &str) -> Result<Lts, Vec<Simple<char>>> {
 // <MuCalc> ::= <Fix> | <Disjunction>
 // <Label> ::= `true' | ( provided label ) | `!` ( provided label )
 // <Id> ::= ( a C-style identifier )
-pub fn parse_mucalc<'a>(
-    labels: impl Iterator<Item = &'a str>,
-    source: &str,
-) -> Result<MuCalc, Vec<Simple<char>>> {
+pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
     let expr = recursive(|expr| {
         let var = text::ident().map(Var).padded();
 
         let act_true = just("true").to(Act::True);
-        let label = choice(labels.map(|l| just(l.to_string())).collect::<Vec<_>>());
+        let label = none_of(">").repeated().collect::<String>();
         let act_label = label.clone().map(Act::Label);
         let act_not_label = just("!").padded().ignore_then(label.map(Act::NotLabel));
-        let act = choice((act_true, act_label, act_not_label)).padded().boxed();
+        let act = choice((act_true, act_not_label, act_label)).padded().boxed();
 
         let tt = text::keyword("tt").map(|_| MuCalc::And(Vec::new()));
         let ff = text::keyword("ff").map(|_| MuCalc::Or(Vec::new()));
