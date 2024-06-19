@@ -3,6 +3,7 @@ use crate::index::new_index;
 new_index!(pub index VarId);
 new_index!(pub index FunId);
 
+#[derive(Debug)]
 pub enum Expr {
     Var(VarId),
     And(Vec<Expr>),
