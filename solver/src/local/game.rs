@@ -6,7 +6,7 @@ use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
 use crate::strategy::{NodeId, Player, Relevance, Set};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
-use crate::symbolic::formula::{BasisElemId, Formula};
+use crate::symbolic::formula::BasisElemId;
 use crate::symbolic::moves::{P0Moves, P0Pos, P1Moves, P1Pos};
 
 impl NodeId {
@@ -126,11 +126,6 @@ impl Game {
             NodeKind::P1(_) => 0,
         };
         Relevance { priority, node }
-    }
-
-    pub fn formula_of(&self, n: NodeP0Id) -> &Formula {
-        let P0Pos { b, i } = self.p0.pos[n];
-        self.formulas.get(b, i)
     }
 
     pub fn successors_of(&self, n: NodeId) -> impl Iterator<Item = NodeId> + '_ {

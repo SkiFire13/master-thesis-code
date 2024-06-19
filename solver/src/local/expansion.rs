@@ -5,6 +5,7 @@ use indexmap::IndexSet;
 use crate::index::{AsIndex, IndexedVec};
 use crate::local::game::WinState;
 use crate::strategy::{NodeId, PlayProfile, Player};
+use crate::symbolic::moves::{Assumption, P0Pos};
 
 use super::escape::update_winning_sets;
 use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
@@ -73,16 +74,25 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
     match game.resolve(n) {
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(p0) => {
-            // Handle case where node never had any moves.
-            if game.formula_of(p0).is_false() {
-                game.p0.incomplete.remove(&p0);
-                game.p0.w1.insert(p0);
-                strategy.try_add(p0, NodeP1Id::W1);
-                return Some(Inserted::Existing(NodeId::W1));
-            }
+            game.p0.moves[p0].simplify(|b, i| match game.p0.pos.get_index_of(&P0Pos { b, i }) {
+                Some(p0) => match game.p0.win[p0] {
+                    WinState::Unknown => Assumption::Unknown,
+                    WinState::Win0 => Assumption::Winning,
+                    WinState::Win1 => Assumption::Losing,
+                },
+                None => Assumption::Unknown,
+            });
 
             let Some(pos) = game.p0.moves[p0].next() else {
                 game.p0.incomplete.remove(&p0);
+
+                // Simplification removed all edges (if there were any)
+                if game.p0.succs[p0].is_empty() {
+                    game.p0.w1.insert(p0);
+                    strategy.try_add(p0, NodeP1Id::W1);
+                    return Some(Inserted::Existing(NodeId::W1));
+                }
+
                 return None;
             };
 
@@ -100,10 +110,9 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
             });
 
             let Some(pos) = mov else {
-                // No reasonable moves available for p1
                 game.p1.incomplete.remove(&p1);
 
-                // Handle case where the node has no edges
+                // Simplification removed all the edges (if there were any)
                 if game.p1.succs[p1].is_empty() {
                     game.p1.w0.insert(p1);
                     return Some(Inserted::Existing(NodeId::W0));
