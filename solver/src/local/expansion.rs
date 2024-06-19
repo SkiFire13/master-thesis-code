@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use indexmap::IndexSet;
 
 use crate::index::{AsIndex, IndexedVec};
+use crate::local::game::WinState;
 use crate::strategy::{NodeId, PlayProfile, Player};
 
 use super::escape::update_winning_sets;
@@ -92,15 +93,22 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
             Some(inserted.map(|p1| game.p1.ids[p1]))
         }
         NodeKind::P1(p1) => {
-            // Handle case where node never had any moves.
-            if game.p1.pos[p1].moves.is_empty() {
-                game.p1.incomplete.remove(&p1);
-                game.p1.w0.insert(p1);
-                return Some(Inserted::Existing(NodeId::W0));
-            }
+            // Find move that is not definitely losing for p1.
+            let mov = game.p1.moves[p1].by_ref().find(|pos| {
+                let Some(p0) = game.p0.pos.get_index_of(pos) else { return true };
+                game.p0.win[p0] != WinState::Win0
+            });
 
-            let Some(pos) = game.p1.moves[p1].next() else {
+            let Some(pos) = mov else {
+                // No reasonable moves available for p1
                 game.p1.incomplete.remove(&p1);
+
+                // Handle case where the node has no edges
+                if game.p1.succs[p1].is_empty() {
+                    game.p1.w0.insert(p1);
+                    return Some(Inserted::Existing(NodeId::W0));
+                }
+
                 return None;
             };
 
