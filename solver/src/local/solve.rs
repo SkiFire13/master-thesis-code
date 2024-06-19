@@ -25,10 +25,13 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
     let mut profiles = initial_play_profiles();
     let mut final_strategy = initial_final_strategy();
 
+    let mut expand_goal = 1;
+
     loop {
         // Initially this will perform the initial expansion and set a proper successor for INIT.
         // Later on it will expand the graph, potentially running `update_winning_sets`.
-        expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy);
+        expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy, expand_goal);
+        expand_goal *= 2;
 
         match game.p0.win[NodeP0Id::INIT] {
             WinState::Win0 => return true,

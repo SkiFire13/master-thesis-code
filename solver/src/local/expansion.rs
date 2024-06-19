@@ -5,9 +5,7 @@ use indexmap::IndexSet;
 use crate::index::{AsIndex, IndexedVec};
 use crate::local::game::WinState;
 use crate::strategy::{NodeId, PlayProfile, Player};
-use crate::symbolic::moves::{Assumption, P0Pos};
 
-use super::escape::update_winning_sets;
 use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
 
 pub fn expand(
@@ -15,23 +13,23 @@ pub fn expand(
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
     final_strategy: &mut IndexedVec<NodeId, NodeId>,
     strategy: &mut GameStrategy,
+    explore_goal: usize,
 ) {
-    loop {
+    let mut explored = 0;
+    let mut improved = false;
+    // Explore a minimum amount of nodes and at least until an improvement is found.
+    while explored < explore_goal || !improved {
+        // Select starting node depending on who's currently winning.
         let start = match profiles[NodeId::INIT].winning(game) {
             Player::P0 => game.p1.incomplete.first().map(|&p1| game.p1.ids[p1]),
             Player::P1 => game.p0.incomplete.first().map(|&p0| game.p0.ids[p0]),
         };
 
-        // If there's no node to expand then update the winning sets.
-        let Some(start) = start else {
-            update_winning_sets(game, &profiles, final_strategy, strategy);
-            return;
-        };
+        // If there's no node to expand then return.
+        let Some(start) = start else { return };
 
         // Expand the initial node and save its new successor for later.
-        let Some(mut next) = expand_one(start, game, strategy) else {
-            continue;
-        };
+        let Some(mut next) = expand_one(start, game, strategy) else { continue };
         let start_next = next.id();
 
         // Expand one step at a time until an existing node or a loop are found.
@@ -44,28 +42,21 @@ pub fn expand(
             expanded.insert(n);
             next = expand_one(n, game, strategy).unwrap();
             final_strategy.push(next.id());
+            explored += 1;
         };
 
         // Incrementally compute the play profiles of the expanded nodes
         update_profiles(stop, &expanded, game, profiles);
 
-        // If the valuation is improve then update the strategy (if start is a p0 node) and return,
-        // otherwise this expansion doesn't improve anything so expand again.
-        let ord = profiles[final_strategy[start]].cmp(&profiles[start_next], game);
-        let player = game.player_of(start);
-        if let (Ordering::Less, Player::P0) | (Ordering::Greater, Player::P1) = (ord, player) {
-            if let NodeKind::P0(p0) = game.resolve(start) {
-                let p1 = match game.resolve(start_next) {
-                    NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
-                    NodeKind::L1 => NodeP1Id::L1,
-                    NodeKind::W1 => NodeP1Id::W1,
-                    NodeKind::P1(p1) => p1,
-                };
-                strategy.update(p0, p1);
-                final_strategy[start] = start_next;
-            }
+        if !improved {
+            // If the valuation is improve then update the strategy (if start is a p0 node) and return,
+            // otherwise this expansion doesn't improve anything so expand again.
+            let ord = profiles[final_strategy[start]].cmp(&profiles[start_next], game);
+            let player = game.player_of(start);
 
-            return;
+            if let (Ordering::Less, Player::P0) | (Ordering::Greater, Player::P1) = (ord, player) {
+                improved = true;
+            }
         }
     }
 }
@@ -74,14 +65,15 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
     match game.resolve(n) {
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(p0) => {
-            game.p0.moves[p0].simplify(|b, i| match game.p0.pos.get_index_of(&P0Pos { b, i }) {
-                Some(p0) => match game.p0.win[p0] {
-                    WinState::Unknown => Assumption::Unknown,
-                    WinState::Win0 => Assumption::Winning,
-                    WinState::Win1 => Assumption::Losing,
-                },
-                None => Assumption::Unknown,
-            });
+            // TODO: Disable this for now as simplify might not be correct.
+            // game.p0.moves[p0].simplify(|b, i| match game.p0.pos.get_index_of(&P0Pos { b, i }) {
+            //     Some(p0) => match game.p0.win[p0] {
+            //         WinState::Unknown => Assumption::Unknown,
+            //         WinState::Win0 => Assumption::Winning,
+            //         WinState::Win1 => Assumption::Losing,
+            //     },
+            //     None => Assumption::Unknown,
+            // });
 
             let Some(pos) = game.p0.moves[p0].next() else {
                 game.p0.incomplete.remove(&p0);
