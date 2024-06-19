@@ -3,13 +3,11 @@ use std::rc::Rc;
 use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
-use crate::strategy::{NodeId, Player, Relevance};
+use crate::strategy::{NodeId, Player, Relevance, Set};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::{BasisElemId, Formula};
 use crate::symbolic::moves::{P0Moves, P0Pos, P1Moves, P1Pos};
-
-use super::Set;
 
 impl NodeId {
     pub const W0: NodeId = NodeId(0);

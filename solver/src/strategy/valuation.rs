@@ -2,9 +2,10 @@ use std::cmp::Reverse;
 use std::collections::VecDeque;
 
 use crate::index::IndexedVec;
-use crate::local::Set;
 
-use super::{GetRelevance, NodeId, NodeMap, ParityGraph, PlayProfile, Player, Relevance, Strategy};
+use super::{
+    GetRelevance, NodeId, NodeMap, ParityGraph, PlayProfile, Player, Relevance, Set, Strategy,
+};
 
 struct Graph<'a, S: Strategy> {
     game: &'a S::Graph,

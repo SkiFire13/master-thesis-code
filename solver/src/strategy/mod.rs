@@ -16,6 +16,7 @@ pub use improve::improve;
 pub use profile::PlayProfile;
 pub use valuation::valuation;
 
+pub type Set<T> = std::collections::BTreeSet<T>;
 pub type NodeMap<T> = std::collections::HashMap<NodeId, T>;
 
 pub trait Strategy {
