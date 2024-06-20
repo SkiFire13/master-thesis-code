@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use crate::iter::{IteratorExt, Simplify};
+
 use super::compose::EqsFormulas;
 use super::eq::VarId;
 use super::formula::{BasisElemId, Formula};
@@ -12,16 +14,21 @@ pub struct P0Pos {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct P1Pos {
-    pub moves: Rc<[(BasisElemId, VarId)]>,
+    pub moves: Rc<[P0Pos]>,
 }
 
-pub struct P0Moves(FormulaIter);
+pub struct P0Moves {
+    exhausted: bool,
+    inner: FormulaIter,
+}
 
-pub struct P1Moves(Rc<[(BasisElemId, VarId)]>, usize);
+pub struct P1Moves(Rc<[P0Pos]>, usize);
 
 impl P0Pos {
     pub fn moves(&self, formulas: &EqsFormulas) -> P0Moves {
-        P0Moves(FormulaIter::new(formulas.get(self.b, self.i)))
+        let inner = FormulaIter::new(formulas.get(self.b, self.i));
+        let exhausted = inner.is_false();
+        P0Moves { exhausted, inner }
     }
 }
 
@@ -33,10 +40,12 @@ impl P1Pos {
 
 impl P0Moves {
     pub fn simplify(&mut self, mut assumption: impl FnMut(BasisElemId, VarId) -> Assumption) {
-        match self.0.inner.simplify(&mut assumption) {
-            Assumption::Winning => self.0.inner = FormulaIterInner::And(Vec::new()),
-            Assumption::Losing => self.0.inner = FormulaIterInner::Or(Vec::new(), 0),
-            Assumption::Unknown => {}
+        match self.inner.simplify(&mut assumption) {
+            Simplified::Winning => self.inner = FormulaIter::And(Vec::new()),
+            Simplified::Losing => self.exhausted = true,
+            Simplified::Updated => {}
+            Simplified::Exhausted => self.exhausted = true,
+            Simplified::Still => {}
         }
     }
 }
@@ -45,7 +54,17 @@ impl Iterator for P0Moves {
     type Item = P1Pos;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(P1Pos { moves: self.0.next()? })
+        if self.exhausted {
+            return None;
+        }
+
+        let moves = self.inner.current();
+
+        if !self.inner.advance() {
+            self.exhausted = true;
+        }
+
+        Some(P1Pos { moves })
     }
 }
 
@@ -54,9 +73,9 @@ impl Iterator for P1Moves {
 
     fn next(&mut self) -> Option<Self::Item> {
         let P1Moves(moves, index) = self;
-        let &(b, i) = moves.get(*index)?;
+        let &pos = moves.get(*index)?;
         *index += 1;
-        Some(P0Pos { b, i })
+        Some(pos)
     }
 }
 
@@ -66,54 +85,12 @@ impl Default for P1Moves {
     }
 }
 
-struct FormulaIter {
-    is_first: bool,
-    inner: FormulaIterInner,
-}
-
-impl FormulaIter {
-    fn new(f: &Formula) -> Self {
-        fn new_inner(f: &Formula) -> FormulaIterInner {
-            use FormulaIterInner::*;
-            match *f {
-                Formula::Atom(b, i) => Atom(b, i),
-                Formula::And(ref children) => And(children.iter().map(new_inner).collect()),
-                Formula::Or(ref children) => Or(children.iter().map(new_inner).collect(), 0),
-            }
-        }
-
-        let inner = new_inner(f);
-        Self { is_first: true, inner }
-    }
-}
-
-impl Iterator for FormulaIter {
-    type Item = Rc<[(BasisElemId, VarId)]>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.is_first {
-            self.is_first = false;
-
-            return match self.inner.is_false() {
-                true => None,
-                false => Some(self.inner.current()),
-            };
-        }
-
-        if !self.inner.advance() {
-            return None;
-        }
-
-        Some(self.inner.current())
-    }
-}
-
-enum FormulaIterInner {
+enum FormulaIter {
     Atom(BasisElemId, VarId),
     // Contains iterators for subformulas.
-    And(Vec<FormulaIterInner>),
+    And(Vec<FormulaIter>),
     // Contains iterators for subformulas and the currently active subformula.
-    Or(Vec<FormulaIterInner>, usize),
+    Or(Vec<FormulaIter>, usize),
 }
 
 pub enum Assumption {
@@ -122,75 +99,160 @@ pub enum Assumption {
     Unknown,
 }
 
-impl FormulaIterInner {
+enum Simplified {
+    // The subformula is definitely winning for P0.
+    Winning,
+    // The subformula is definitely losing for P0.
+    Losing,
+    // The current represented P1Pos was removed and replaced by a next one.
+    Updated,
+    // All the remaining P1Pos were removed, but iterator can still be restarted.
+    Exhausted,
+    // The currently represented P1Pos was not removed.
+    Still,
+}
+
+impl FormulaIter {
+    fn new(f: &Formula) -> Self {
+        match *f {
+            Formula::Atom(b, i) => Self::Atom(b, i),
+            Formula::And(ref children) => Self::And(children.iter().map(Self::new).collect()),
+            Formula::Or(ref children) => Self::Or(children.iter().map(Self::new).collect(), 0),
+        }
+    }
+
     fn is_false(&self) -> bool {
-        let FormulaIterInner::Or(iters, _) = self else { return false };
+        let FormulaIter::Or(iters, _) = self else { return false };
         iters.is_empty()
+    }
+
+    fn reset(&mut self) {
+        match self {
+            FormulaIter::Atom(_, _) => {}
+            FormulaIter::And(iters) => iters.iter_mut().for_each(Self::reset),
+            FormulaIter::Or(iters, pos) => {
+                iters.iter_mut().for_each(Self::reset);
+                *pos = 0;
+            }
+        }
     }
 
     fn simplify(
         &mut self,
         assumption: &mut impl FnMut(BasisElemId, VarId) -> Assumption,
-    ) -> Assumption {
+    ) -> Simplified {
         match self {
-            FormulaIterInner::Atom(b, i) => assumption(*b, *i),
-            FormulaIterInner::And(iters) => {
+            FormulaIter::Atom(b, i) => match assumption(*b, *i) {
+                Assumption::Winning => Simplified::Winning,
+                Assumption::Losing => Simplified::Losing,
+                Assumption::Unknown => Simplified::Still,
+            },
+            FormulaIter::And(iters) => {
+                let mut advance_from = None;
+                let mut need_reset = false;
+                let mut curr_idx = 0;
+
                 let new_iters = std::mem::take(iters)
                     .into_iter()
-                    .filter_map(|mut f| match f.simplify(assumption) {
-                        // Ignore the winning ones
-                        Assumption::Winning => None,
-                        // Short circuit if one is losing
-                        Assumption::Losing => Some(None),
-                        // Passthrough the unknowns
-                        Assumption::Unknown => Some(Some(f)),
+                    .simplify(|mut iter| {
+                        if need_reset {
+                            iter.reset();
+                        }
+
+                        match iter.simplify(assumption) {
+                            Simplified::Winning => return Simplify::Remove,
+                            Simplified::Losing => return Simplify::Break,
+                            Simplified::Updated => need_reset = true,
+                            Simplified::Exhausted => advance_from = Some(curr_idx),
+                            Simplified::Still => {}
+                        }
+
+                        curr_idx += 1;
+
+                        Simplify::Keep(iter)
                     })
                     .collect::<Option<Vec<_>>>();
 
-                let Some(new_iters) = new_iters else { return Assumption::Losing };
+                let Some(new_iters) = new_iters else { return Simplified::Losing };
                 *iters = new_iters;
 
-                match iters.is_empty() {
-                    true => Assumption::Winning,
-                    false => Assumption::Unknown,
+                if iters.is_empty() {
+                    return Simplified::Winning;
                 }
+
+                if let Some(advance_from) = advance_from {
+                    for iter in iters[..advance_from].iter_mut().rev() {
+                        if iter.advance() {
+                            return Simplified::Updated;
+                        }
+                    }
+
+                    return Simplified::Exhausted;
+                }
+
+                Simplified::Still
             }
-            FormulaIterInner::Or(iters, pos) => {
+            FormulaIter::Or(iters, pos) => {
                 let mut shift = 0;
+                let mut exhausted = false;
+                let mut updated = false;
+
                 let new_iters = std::mem::take(iters)
                     .into_iter()
-                    .map(|mut f| match f.simplify(assumption) {
-                        // Ignore the losing ones
-                        Assumption::Losing => None,
-                        // Short circuit if one is winning
-                        Assumption::Winning => Some(None),
-                        // Passthrough the unknowns
-                        Assumption::Unknown => Some(Some(f)),
-                    })
                     .enumerate()
-                    .inspect(|(i, o)| shift += (i < pos && o.is_none()) as usize)
-                    .filter_map(|(_, o)| o)
+                    .simplify_with(
+                        |i| shift += (i < *pos) as usize,
+                        |(i, mut iter)| {
+                            match iter.simplify(assumption) {
+                                Simplified::Winning => return Simplify::Break,
+                                Simplified::Losing => return Simplify::Remove,
+                                Simplified::Updated => updated |= i == *pos,
+                                Simplified::Exhausted => exhausted = true,
+                                Simplified::Still => {}
+                            }
+                            Simplify::Keep(iter)
+                        },
+                    )
                     .collect::<Option<Vec<_>>>();
 
+                let Some(new_iters) = new_iters else { return Simplified::Winning };
+                *iters = new_iters;
                 *pos -= shift;
 
-                let Some(new_iters) = new_iters else { return Assumption::Winning };
-                *iters = new_iters;
-
-                match iters.is_empty() {
-                    true => Assumption::Losing,
-                    false => Assumption::Unknown,
+                if iters.is_empty() {
+                    return Simplified::Losing;
                 }
+
+                if *pos >= iters.len() {
+                    *pos = 0;
+                    return Simplified::Exhausted;
+                }
+
+                if exhausted {
+                    if *pos + 1 < iters.len() {
+                        *pos += 1;
+                        return Simplified::Updated;
+                    } else {
+                        *pos = 0;
+                        return Simplified::Exhausted;
+                    }
+                }
+
+                if updated {
+                    return Simplified::Updated;
+                }
+
+                Simplified::Still
             }
         }
     }
 
-    fn current(&self) -> Rc<[(BasisElemId, VarId)]> {
-        fn inner(iter: &FormulaIterInner, out: &mut Vec<(BasisElemId, VarId)>) {
+    fn current(&self) -> Rc<[P0Pos]> {
+        fn inner(iter: &FormulaIter, out: &mut Vec<P0Pos>) {
             match *iter {
-                FormulaIterInner::Atom(b, i) => out.push((b, i)),
-                FormulaIterInner::And(ref iters) => iters.iter().for_each(|iter| inner(iter, out)),
-                FormulaIterInner::Or(ref iters, pos) => inner(&iters[pos], out),
+                FormulaIter::Atom(b, i) => out.push(P0Pos { b, i }),
+                FormulaIter::And(ref iters) => iters.iter().for_each(|iter| inner(iter, out)),
+                FormulaIter::Or(ref iters, pos) => inner(&iters[pos], out),
             }
         }
 
@@ -199,7 +261,7 @@ impl FormulaIterInner {
 
         // TODO: which is the best order?
         // Sorting because this needs to be normalized.
-        out.sort_unstable_by_key(|&(b, i)| (i, b));
+        out.sort_unstable_by_key(|&P0Pos { b, i }| (i, b));
         out.dedup();
 
         out.into()
@@ -210,8 +272,8 @@ impl FormulaIterInner {
     fn advance(&mut self) -> bool {
         match self {
             // An atom always resets because it has only 1 item.
-            FormulaIterInner::Atom(_, _) => false,
-            FormulaIterInner::And(iters) => {
+            FormulaIter::Atom(_, _) => false,
+            FormulaIter::And(iters) => {
                 // Try to advance the last one, if it resets then advance the previous one
                 // and so on. This is similar to how adding 1 to 199 turns into 200.
                 for iter in iters.iter_mut().rev() {
@@ -222,7 +284,7 @@ impl FormulaIterInner {
                 // If all sub-iterators resetted then we also reset.
                 false
             }
-            FormulaIterInner::Or(iters, pos) => {
+            FormulaIter::Or(iters, pos) => {
                 if *pos >= iters.len() {
                     // We removed all trailing iterators in a simplify
                     *pos = 0;
@@ -246,12 +308,12 @@ impl FormulaIterInner {
 
 #[cfg(test)]
 mod tests {
-    use super::{BasisElemId, Formula, FormulaIter, VarId};
-    use std::rc::Rc;
+    use super::{BasisElemId, Formula, P0Pos, VarId};
+    use crate::symbolic::moves::{FormulaIter, P0Moves, P1Pos};
 
-    fn naive_moves(f: &Formula) -> Vec<Vec<(BasisElemId, VarId)>> {
+    fn naive_moves(f: &Formula) -> Vec<Vec<P0Pos>> {
         match *f {
-            Formula::Atom(b, i) => vec![vec![(b, i)]],
+            Formula::Atom(b, i) => vec![vec![P0Pos { b, i }]],
             Formula::And(ref children) => {
                 children.iter().map(naive_moves).fold(vec![Vec::new()], |ms1, ms2| {
                     ms1.iter()
@@ -287,13 +349,15 @@ mod tests {
         let naive = naive_moves(&f)
             .into_iter()
             .map(|mut m| {
-                m.sort_unstable_by_key(|&(b, i)| (i, b));
+                m.sort_unstable_by_key(|&P0Pos { b, i }| (i, b));
                 m.dedup();
-                Rc::<[_]>::from(m)
+                P1Pos { moves: m.into() }
             })
             .collect::<Vec<_>>();
 
-        let with_iter = FormulaIter::new(&f).collect::<Vec<_>>();
+        let formula_iter = FormulaIter::new(&f);
+        let moves = P0Moves { exhausted: false, inner: formula_iter };
+        let with_iter = moves.collect::<Vec<_>>();
 
         assert_eq!(naive, with_iter);
     }

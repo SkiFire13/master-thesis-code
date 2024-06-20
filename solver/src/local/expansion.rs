@@ -66,14 +66,15 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(p0) => {
             // TODO: Disable this for now as simplify might not be correct.
-            // game.p0.moves[p0].simplify(|b, i| match game.p0.pos.get_index_of(&P0Pos { b, i }) {
-            //     Some(p0) => match game.p0.win[p0] {
-            //         WinState::Unknown => Assumption::Unknown,
-            //         WinState::Win0 => Assumption::Winning,
-            //         WinState::Win1 => Assumption::Losing,
-            //     },
-            //     None => Assumption::Unknown,
-            // });
+            use crate::symbolic::moves::{Assumption, P0Pos};
+            game.p0.moves[p0].simplify(|b, i| match game.p0.pos.get_index_of(&P0Pos { b, i }) {
+                Some(p0) => match game.p0.win[p0] {
+                    WinState::Unknown => Assumption::Unknown,
+                    WinState::Win0 => Assumption::Winning,
+                    WinState::Win1 => Assumption::Losing,
+                },
+                None => Assumption::Unknown,
+            });
 
             let Some(pos) = game.p0.moves[p0].next() else {
                 game.p0.incomplete.remove(&p0);
