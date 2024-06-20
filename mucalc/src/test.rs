@@ -37,7 +37,10 @@ macro_rules! declare_test {
     }
 
 declare_test! {
-    bridge: [ bridge_receive_17 ],
+    bridge: [
+        bridge_receive_17,
+        bridge_report_17,
+    ],
     gossips: [
         gossips_known_after_7_steps,
         gossips_known_after_7_steps_mu,
