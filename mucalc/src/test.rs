@@ -40,6 +40,7 @@ declare_test! {
     bridge: [ bridge_receive_17 ],
     gossips: [
         gossips_known_after_7_steps,
+        gossips_known_after_7_steps_mu,
         gossips_deadlock_liveness,
     ],
     vm01: [
