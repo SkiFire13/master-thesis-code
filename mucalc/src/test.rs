@@ -47,5 +47,9 @@ declare_test! {
         vm01_b_ready_always_possible: false,
         vm01_c_only_coin_after_ready,
         vm01_d_ready_coin_ready
-    ]
+    ],
+    vm02: [
+        vm02_a_no_3_10ct,
+        vm02_b_no_chocolate_10,
+    ],
 }
