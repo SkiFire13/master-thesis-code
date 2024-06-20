@@ -41,11 +41,11 @@ impl P1Pos {
 impl P0Moves {
     pub fn simplify(&mut self, mut assumption: impl FnMut(BasisElemId, VarId) -> Assumption) {
         match self.inner.simplify(&mut assumption) {
-            Simplified::Winning => self.inner = FormulaIter::And(Vec::new()),
-            Simplified::Losing => self.exhausted = true,
-            Simplified::Updated => {}
-            Simplified::Exhausted => self.exhausted = true,
-            Simplified::Still => {}
+            Status::Winning => self.inner = FormulaIter::And(Vec::new()),
+            Status::Losing => self.exhausted = true,
+            Status::Advanced => {}
+            Status::Exhausted => self.exhausted = true,
+            Status::Still => {}
         }
     }
 }
@@ -99,13 +99,13 @@ pub enum Assumption {
     Unknown,
 }
 
-enum Simplified {
+enum Status {
     // The subformula is definitely winning for P0.
     Winning,
     // The subformula is definitely losing for P0.
     Losing,
     // The current represented P1Pos was removed and replaced by a next one.
-    Updated,
+    Advanced,
     // All the remaining P1Pos were removed, but iterator can still be restarted.
     Exhausted,
     // The currently represented P1Pos was not removed.
@@ -140,31 +140,31 @@ impl FormulaIter {
     fn simplify(
         &mut self,
         assumption: &mut impl FnMut(BasisElemId, VarId) -> Assumption,
-    ) -> Simplified {
+    ) -> Status {
         match self {
             FormulaIter::Atom(b, i) => match assumption(*b, *i) {
-                Assumption::Winning => Simplified::Winning,
-                Assumption::Losing => Simplified::Losing,
-                Assumption::Unknown => Simplified::Still,
+                Assumption::Winning => Status::Winning,
+                Assumption::Losing => Status::Losing,
+                Assumption::Unknown => Status::Still,
             },
             FormulaIter::And(iters) => {
-                let mut advance_from = None;
-                let mut need_reset = false;
+                let mut exhausted = None;
+                let mut advanced = false;
                 let mut curr_idx = 0;
 
                 let new_iters = std::mem::take(iters)
                     .into_iter()
                     .simplify(|mut iter| {
-                        if need_reset {
+                        if advanced {
                             iter.reset();
                         }
 
                         match iter.simplify(assumption) {
-                            Simplified::Winning => return Simplify::Remove,
-                            Simplified::Losing => return Simplify::Break,
-                            Simplified::Updated => need_reset = true,
-                            Simplified::Exhausted => advance_from = Some(curr_idx),
-                            Simplified::Still => {}
+                            Status::Winning => return Simplify::Remove,
+                            Status::Losing => return Simplify::Break,
+                            Status::Advanced => advanced = true,
+                            Status::Exhausted => exhausted = Some(curr_idx),
+                            Status::Still => {}
                         }
 
                         curr_idx += 1;
@@ -173,76 +173,73 @@ impl FormulaIter {
                     })
                     .collect::<Option<Vec<_>>>();
 
-                let Some(new_iters) = new_iters else { return Simplified::Losing };
+                let Some(new_iters) = new_iters else { return Status::Losing };
                 *iters = new_iters;
 
                 if iters.is_empty() {
-                    return Simplified::Winning;
-                }
-
-                if let Some(advance_from) = advance_from {
-                    for iter in iters[..advance_from].iter_mut().rev() {
-                        if iter.advance() {
-                            return Simplified::Updated;
-                        }
+                    // Formula is empty and thus is winning.
+                    Status::Winning
+                } else if iters.len() == 1 {
+                    // Formula only contains one subformula and is thus equal to that one.
+                    *self = iters.pop().unwrap();
+                    match () {
+                        _ if exhausted.is_some() => Status::Exhausted,
+                        _ if advanced => Status::Advanced,
+                        _ => Status::Still,
                     }
-
-                    return Simplified::Exhausted;
+                } else if let Some(exhausted) = exhausted {
+                    // One of the subformulas was exhausted, try advancing the earlier ones.
+                    let advanced = iters[..exhausted].iter_mut().rev().any(|iter| iter.advance());
+                    let status = if advanced { Status::Advanced } else { Status::Exhausted };
+                    status
+                } else {
+                    // Nothing changed
+                    Status::Still
                 }
-
-                Simplified::Still
             }
             FormulaIter::Or(iters, pos) => {
-                let mut shift = 0;
+                let mut new_pos = 0;
+                let mut advanced = false;
                 let mut exhausted = false;
-                let mut updated = false;
 
                 let new_iters = std::mem::take(iters)
                     .into_iter()
                     .enumerate()
-                    .simplify_with(
-                        |i| shift += (i < *pos) as usize,
-                        |(i, mut iter)| {
-                            match iter.simplify(assumption) {
-                                Simplified::Winning => return Simplify::Break,
-                                Simplified::Losing => return Simplify::Remove,
-                                Simplified::Updated => updated |= i == *pos,
-                                Simplified::Exhausted => exhausted = true,
-                                Simplified::Still => {}
-                            }
-                            Simplify::Keep(iter)
-                        },
-                    )
+                    .simplify(|(i, mut iter)| {
+                        match iter.simplify(assumption) {
+                            Status::Winning => return Simplify::Break,
+                            Status::Losing => return Simplify::Remove,
+                            Status::Advanced => advanced |= i == *pos,
+                            Status::Exhausted => exhausted = true,
+                            Status::Still => {}
+                        }
+                        new_pos += if i < *pos { 1 } else { 0 };
+                        Simplify::Keep(iter)
+                    })
                     .collect::<Option<Vec<_>>>();
 
-                let Some(new_iters) = new_iters else { return Simplified::Winning };
+                let Some(new_iters) = new_iters else { return Status::Winning };
                 *iters = new_iters;
-                *pos -= shift;
+                *pos = new_pos;
 
+                // Handle remaining with 0/1 subformulas
                 if iters.is_empty() {
-                    return Simplified::Losing;
+                    return Status::Losing;
+                } else if iters.len() == 1 {
+                    *self = iters.pop().unwrap();
+                    return if exhausted { Status::Exhausted } else { Status::Advanced };
                 }
 
-                if *pos >= iters.len() {
-                    *pos = 0;
-                    return Simplified::Exhausted;
-                }
-
-                if exhausted {
-                    if *pos + 1 < iters.len() {
-                        *pos += 1;
-                        return Simplified::Updated;
-                    } else {
-                        *pos = 0;
-                        return Simplified::Exhausted;
-                    }
-                }
-
-                if updated {
-                    return Simplified::Updated;
-                }
-
-                Simplified::Still
+                // Handle current formula being removed/advanced/exhausted.
+                let (new_pos, status) = match () {
+                    _ if *pos >= iters.len() => (0, Status::Exhausted),
+                    _ if exhausted && *pos + 1 == iters.len() => (0, Status::Exhausted),
+                    _ if exhausted && *pos + 1 < iters.len() => (*pos + 1, Status::Advanced),
+                    _ if advanced => (*pos, Status::Advanced),
+                    _ => (*pos, Status::Still),
+                };
+                *pos = new_pos;
+                status
             }
         }
     }
@@ -271,36 +268,21 @@ impl FormulaIter {
     // Returns whether it reached the end.
     fn advance(&mut self) -> bool {
         match self {
-            // An atom always resets because it has only 1 item.
+            // An atom is always exhausted because it has only 1 item.
             FormulaIter::Atom(_, _) => false,
-            FormulaIter::And(iters) => {
-                // Try to advance the last one, if it resets then advance the previous one
-                // and so on. This is similar to how adding 1 to 199 turns into 200.
-                for iter in iters.iter_mut().rev() {
-                    if iter.advance() {
-                        return true;
-                    }
-                }
-                // If all sub-iterators resetted then we also reset.
-                false
-            }
+            // Try to advance any iterator from the last, just like adding 1 to a number.
+            FormulaIter::And(iters) => iters.iter_mut().rev().any(|iter| iter.advance()),
             FormulaIter::Or(iters, pos) => {
-                if *pos >= iters.len() {
-                    // We removed all trailing iterators in a simplify
-                    *pos = 0;
-                    false
-                } else if iters[*pos].advance() {
-                    // We successfully advanced the current iterator
-                    true
-                } else if *pos + 1 < iters.len() {
-                    // Otherwise the current iterator resetted, go to the next one.
-                    *pos += 1;
-                    true
-                } else {
-                    // If there's no next iterator then we reset too.
-                    *pos = 0;
-                    false
-                }
+                let (new_pos, advanced) = match () {
+                    // Try to advance the current iterator
+                    _ if iters[*pos].advance() => (*pos, true),
+                    // Try to go to the next iterator
+                    _ if *pos + 1 < iters.len() => (*pos + 1, true),
+                    // We are exhausted ourself
+                    _ => (0, false),
+                };
+                *pos = new_pos;
+                advanced
             }
         }
     }
