@@ -14,11 +14,6 @@ impl StateId {
 }
 
 pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: &Lts) -> (IndexedVec<VarId, FixEq>, FunsFormulas) {
-    match mu_calc {
-        MuCalc::Mu(_, _) | MuCalc::Nu(_, _) => {}
-        _ => panic!("mu-calculus formula must have a fix-point at the root"),
-    }
-
     let mut ctx = ConvContext {
         lts,
         funcs: IndexedSet::default(),
@@ -33,7 +28,14 @@ pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: &Lts) -> (IndexedVec<VarId, FixEq>, 
     ctx.gather_vars(mu_calc);
 
     // Then actually convert the expression
-    ctx.conv(mu_calc);
+    let expr = ctx.conv(mu_calc);
+
+    // If the resulting expr is a var then the outmost expression is a fixpoint
+    // and we don't need another equation. Otherwise add one.
+    // This is an exact equation so the fixpoint type doesn't matter.
+    if !matches!(expr, Expr::Var(_)) {
+        ctx.sys.push(FixEq { fix_type: FixType::Min, expr });
+    }
 
     (ctx.sys, FunsFormulas::new(ctx.formulas, lts.transitions.len()))
 }
@@ -70,8 +72,7 @@ impl<'a> ConvContext<'a> {
                 self.gather_vars(e);
                 // Ensure the variable is inserted after the inner ones are gathered,
                 // so that more external fixpoints are last and thus more relevant.
-                let is_new = self.vars.insert(x);
-                assert!(is_new, "Variable {} declared twice", x.0);
+                self.vars.insert(x);
             }
         }
     }
@@ -110,7 +111,8 @@ impl<'a> ConvContext<'a> {
     fn conv_fix(&mut self, fix_type: FixType, x: &'a Var, e: &'a MuCalc) -> Expr {
         let i = self.vars.index_of(x);
 
-        self.scope_vars.insert(i);
+        let is_new = self.scope_vars.insert(i);
+        assert!(is_new, "Variable {} declared twice", x.0);
         let expr = self.conv(e);
         self.scope_vars.remove(&i);
 
