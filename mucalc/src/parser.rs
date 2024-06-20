@@ -81,7 +81,7 @@ pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
         let var = text::ident().map(Var).padded();
 
         let act_true = just("true").to(Act::True);
-        let label = none_of(">").repeated().collect::<String>();
+        let label = none_of(">]").repeated().collect::<String>();
         let act_label = label.clone().map(Act::Label);
         let act_not_label = just("!").padded().ignore_then(label.map(Act::NotLabel));
         let act = choice((act_true, act_not_label, act_label)).padded().boxed();
