@@ -155,7 +155,7 @@ impl FormulaIter {
                 let new_iters = std::mem::take(iters)
                     .into_iter()
                     .simplify(|mut iter| {
-                        if advanced {
+                        if advanced || exhausted.is_some() {
                             iter.reset();
                         }
 
@@ -163,7 +163,7 @@ impl FormulaIter {
                             Status::Winning => return Simplify::Remove,
                             Status::Losing => return Simplify::Break,
                             Status::Advanced => advanced = true,
-                            Status::Exhausted => exhausted = Some(curr_idx),
+                            Status::Exhausted => exhausted = exhausted.or(Some(curr_idx)),
                             Status::Still => {}
                         }
 
@@ -182,6 +182,7 @@ impl FormulaIter {
                 } else if iters.len() == 1 {
                     // Formula only contains one subformula and is thus equal to that one.
                     *self = iters.pop().unwrap();
+                    // TODO: Is this correct?
                     match () {
                         _ if exhausted.is_some() => Status::Exhausted,
                         _ if advanced => Status::Advanced,
