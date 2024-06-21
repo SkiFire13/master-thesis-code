@@ -41,7 +41,7 @@ pub fn valuation<S: Strategy>(
     // Build graph with p0 moves restricted to the given strategy.
     let graph = &Graph { game, strategy };
 
-    let mut evaluated = Set::new();
+    let mut evaluated = Set::default();
     let mut profiles = IndexedVec::from(vec![PlayProfile::default(); graph.node_count()]);
     let mut final_strategy = IndexedVec::from(vec![NodeId(usize::MAX); graph.node_count()]);
 
@@ -150,8 +150,8 @@ fn subevaluation(
         base: graph,
         k_nodes: &k_nodes,
         k_set,
-        removed_edges: Set::new(),
-        removed_successors_count: NodeMap::new(),
+        removed_edges: Set::default(),
+        removed_successors_count: NodeMap::default(),
     };
 
     let w_relevance = graph.relevance_of(w);
@@ -198,7 +198,7 @@ fn prevent_paths(
     let u_set = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
 
     // Update profiles of nodes whose path must go through u.
-    for &v in graph.k_nodes.iter().filter(|v| !u_set.contains(v)) {
+    for &v in graph.k_nodes.iter().filter(|&v| !u_set.contains(v)) {
         profiles[v].relevant_before.push(u);
     }
 
@@ -241,7 +241,7 @@ where
     I: IntoIterator<Item = NodeId>,
 {
     let mut stack = vec![start];
-    let mut set = Set::new();
+    let mut set = Set::default();
 
     // BFS according to explore
     while let Some(node) = stack.pop() {
@@ -286,7 +286,7 @@ fn set_minimal_distances(
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
     final_strategy: &mut IndexedVec<NodeId, NodeId>,
 ) {
-    let mut seen = Set::new();
+    let mut seen = Set::default();
     let mut queue = VecDeque::from([(w, graph.successors_of(w).next().unwrap(), 0)]);
 
     // Backward BFS

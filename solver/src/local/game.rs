@@ -3,7 +3,7 @@ use std::rc::Rc;
 use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
-use crate::strategy::{NodeId, Player, Relevance, Set};
+use crate::strategy::{NodeId, Player, Relevance, Set, SetQueue};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::BasisElemId;
@@ -60,7 +60,7 @@ pub struct NodesData<I, P, M, O> {
     // Set of successors for each node.
     pub succs: IndexedVec<I, Set<O>>,
     // Set of nodes that still have unexplored edges.
-    pub incomplete: Set<I>,
+    pub incomplete: SetQueue<I>,
     // Which player definitely wins on this node
     pub win: IndexedVec<I, WinState>,
     // Set of this player's nodes where player 0 wins
@@ -205,8 +205,8 @@ impl Game {
         // If the node is new we need to setup its slot in the various IndexVecs
         self.p0.ids.push(self.nodes.push(NodeKind::P0(n)));
         self.p0.moves.push(pos.moves(&self.formulas));
-        self.p0.preds.push(Set::new());
-        self.p0.succs.push(Set::new());
+        self.p0.preds.push(Set::default());
+        self.p0.succs.push(Set::default());
         self.p0.incomplete.insert(n);
         self.p0.win.push(WinState::Unknown);
 
@@ -226,8 +226,8 @@ impl Game {
 
         self.p1.ids.push(self.nodes.push(NodeKind::P1(n)));
         self.p1.moves.push(pos.moves());
-        self.p1.preds.push(Set::new());
-        self.p1.succs.push(Set::new());
+        self.p1.preds.push(Set::default());
+        self.p1.succs.push(Set::default());
         self.p1.incomplete.insert(n);
         self.p1.win.push(WinState::Unknown);
 
@@ -278,8 +278,8 @@ impl GameStrategy {
         Self {
             direct: IndexedVec::new(),
             inverse: IndexedVec::new(),
-            inverse_w1: Set::new(),
-            inverse_l1: Set::new(),
+            inverse_w1: Set::default(),
+            inverse_l1: Set::default(),
         }
     }
 
@@ -289,7 +289,7 @@ impl GameStrategy {
 
         // Ensure in inverse there's a slot for p1, as this will be used in the next if.
         if p1.to_usize() == self.inverse.len() {
-            self.inverse.push(Set::new());
+            self.inverse.push(Set::default());
         }
 
         // Ensure in direct there's a slot for p0, if not insert it.

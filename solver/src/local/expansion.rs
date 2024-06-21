@@ -24,8 +24,8 @@ pub fn expand(
     while explored < explore_goal || !improved {
         // Select starting node depending on who's currently winning.
         let start = match profiles[NodeId::INIT].winning(game) {
-            Player::P0 => game.p1.incomplete.first().map(|&p1| game.p1.ids[p1]),
-            Player::P1 => game.p0.incomplete.first().map(|&p0| game.p0.ids[p0]),
+            Player::P0 => game.p1.incomplete.last().map(|&p1| game.p1.ids[p1]),
+            Player::P1 => game.p0.incomplete.last().map(|&p0| game.p0.ids[p0]),
         };
 
         // If there's no node to expand then return.
@@ -87,7 +87,7 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
             });
 
             let Some(pos) = game.p0.moves[p0].next() else {
-                game.p0.incomplete.remove(&p0);
+                game.p0.incomplete.swap_remove(&p0);
 
                 // Simplification removed all edges (if there were any)
                 if game.p0.succs[p0].is_empty() {
@@ -113,7 +113,7 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
             });
 
             let Some(pos) = mov else {
-                game.p1.incomplete.remove(&p1);
+                game.p1.incomplete.swap_remove(&p1);
 
                 // Simplification removed all the edges (if there were any)
                 if game.p1.succs[p1].is_empty() {

@@ -119,7 +119,7 @@ fn run_valuation_test(game: &TestGame) {
         .filter(|(_, &p)| p == Player::P0)
         .map(|(n, _)| (n, *game.successors[n].last().unwrap()))
         .collect::<NodeMap<_>>();
-    let mut inverse_strategy = NodeMap::new();
+    let mut inverse_strategy = NodeMap::default();
     for (&n, &m) in direct_strategy.iter() {
         inverse_strategy.entry(m).or_insert_with(Vec::new).push(n);
     }

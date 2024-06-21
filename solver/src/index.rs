@@ -92,7 +92,7 @@ impl<I, T> FromIterator<T> for IndexedVec<I, T> {
 }
 
 pub struct IndexedSet<I, T> {
-    set: indexmap::IndexSet<T>,
+    set: indexmap::IndexSet<T, rustc_hash::FxBuildHasher>,
     _marker: PhantomData<I>,
 }
 
@@ -124,7 +124,7 @@ impl<I: AsIndex, T: Hash + Eq> IndexedSet<I, T> {
 }
 
 impl<I, T> Deref for IndexedSet<I, T> {
-    type Target = indexmap::IndexSet<T>;
+    type Target = indexmap::IndexSet<T, rustc_hash::FxBuildHasher>;
 
     fn deref(&self) -> &Self::Target {
         &self.set
@@ -139,7 +139,7 @@ impl<I, T> DerefMut for IndexedSet<I, T> {
 
 impl<I, T: Hash + Eq, const N: usize> From<[T; N]> for IndexedSet<I, T> {
     fn from(value: [T; N]) -> Self {
-        Self { set: value.into(), _marker: PhantomData }
+        Self { set: <_>::from_iter(value), _marker: PhantomData }
     }
 }
 

@@ -25,7 +25,7 @@ impl Game {
             // Mark predecessors as winning and complete.
             self.p1.win[p1] = WinState::Win1;
             self.p1.w1.insert(p1);
-            self.p1.incomplete.remove(&p1);
+            self.p1.incomplete.swap_remove(&p1);
             // Fixup strategy
             final_strategy[self.p1.ids[p1]] = NodeId::L0;
 
@@ -61,7 +61,7 @@ impl Game {
             // Mark predecessors as winning and complete.
             self.p0.win[p0] = WinState::Win0;
             self.p0.w0.insert(p0);
-            self.p0.incomplete.remove(&p0);
+            self.p0.incomplete.swap_remove(&p0);
             // Fixup strategy
             strategy.update(p0, NodeP1Id::L1);
             final_strategy[self.p0.ids[p0]] = NodeId::L1;
