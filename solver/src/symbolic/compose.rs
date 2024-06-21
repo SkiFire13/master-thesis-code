@@ -22,11 +22,8 @@ impl FunsFormulas {
 }
 
 pub struct EqsFormulas {
-    // TODO: Make this an IndexVec<IndexVec>> ?
     /// 2D array with BasisElemId indexing columns and VarId indexing rows.
-    pub moves: Vec<Formula>,
-    /// Number of columns / length of a row.
-    basis_len: usize,
+    pub moves: IndexedVec<VarId, IndexedVec<BasisElemId, Formula>>,
     /// Type of fixpoint for each equation.
     pub eq_fix_types: IndexedVec<VarId, FixType>,
 }
@@ -35,28 +32,24 @@ impl EqsFormulas {
     pub fn new(eqs: &[FixEq], raw_moves: &FunsFormulas) -> Self {
         let basis_len = raw_moves.basis_len;
 
-        let mut moves = Vec::with_capacity(eqs.len() * raw_moves.formulas.len());
-        for eq in eqs {
-            for b in (0..basis_len).map(BasisElemId) {
-                moves.push(compose_moves(&eq.expr, b, raw_moves));
-            }
-        }
+        let moves = eqs
+            .iter()
+            .map(|eq| {
+                (0..basis_len).map(|b| compose_moves(&eq.expr, BasisElemId(b), raw_moves)).collect()
+            })
+            .collect();
 
         let eq_fix_types = eqs.iter().map(|e| e.fix_type).collect();
 
-        Self { moves, basis_len, eq_fix_types }
+        Self { moves, eq_fix_types }
     }
 
     pub fn get(&self, b: BasisElemId, i: VarId) -> &Formula {
-        &self.moves[i.to_usize() * self.basis_len + b.to_usize()]
-    }
-
-    pub fn basis_len(&self) -> usize {
-        self.basis_len
+        &self.moves[i][b]
     }
 
     pub fn var_count(&self) -> usize {
-        self.moves.len() / self.basis_len
+        self.moves.len()
     }
 }
 
