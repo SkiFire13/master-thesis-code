@@ -30,13 +30,18 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
     loop {
         // Initially this will perform the initial expansion and set a proper successor for INIT.
         // Later on it will expand the graph, potentially running `update_winning_sets`.
-        expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy, expand_goal);
+        let solved =
+            expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy, expand_goal);
         expand_goal *= 2;
 
-        match game.p0.win[NodeP0Id::INIT] {
-            WinState::Win0 => return true,
-            WinState::Win1 => return false,
-            WinState::Unknown => {}
+        // If expansion finished the successors and no improvement happened then see who won.
+        if solved {
+            update_winning_sets(&mut game, &profiles, &mut final_strategy, &mut strategy);
+            match game.p0.win[NodeP0Id::INIT] {
+                WinState::Win0 => return true,
+                WinState::Win1 => return false,
+                WinState::Unknown => {}
+            }
         }
 
         // Try to improve while possible

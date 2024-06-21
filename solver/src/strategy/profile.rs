@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use crate::index::IndexedVec;
+
 use super::{GetRelevance, NodeId, Player, Reward};
 
 #[derive(Clone, Debug, Default)]
@@ -24,7 +26,7 @@ impl PlayProfile {
         self.relevant_before.iter().map(move |&u| gr.reward_of(u)).chain([Reward::Neutral])
     }
 
-    pub fn cmp(&self, that: &PlayProfile, gr: &impl GetRelevance) -> Ordering {
+    fn cmp_w(&self, that: &PlayProfile, gr: &impl GetRelevance) -> Ordering {
         // Compare the most relevant vertex of the cycle
         let cmp_most_relevant = || {
             let this_rew = gr.reward_of(self.most_relevant);
@@ -32,10 +34,17 @@ impl PlayProfile {
             Ord::cmp(&this_rew, &that_rew)
         };
 
-        // Compare the set of more relevant nodes visited before the cycle
+        // Compare the set of more relevant nodes visited before the cycle.
+        // This should ignore all those nodes with relevance less than w,
+        // but if most_relevant compare equal then we know that's equal to w
+        // and thus all these have relevance bigger than w.
         let cmp_relevant_before =
             || Iterator::cmp(self.rewards_before(gr), that.rewards_before(gr));
 
+        cmp_most_relevant().then_with(cmp_relevant_before)
+    }
+
+    fn cmp(&self, that: &PlayProfile, gr: &impl GetRelevance) -> Ordering {
         // Compare the number of nodes visited before most relevant vertex of the loop
         let cmp_count_before = || match self.winning(gr) {
             // If P0 is winning a shorter path is better (order is reversed, less is greater).
@@ -44,6 +53,21 @@ impl PlayProfile {
             Player::P1 => Ord::cmp(&self.count_before, &that.count_before),
         };
 
-        cmp_most_relevant().then_with(cmp_relevant_before).then_with(cmp_count_before)
+        self.cmp_w(that, gr).then_with(cmp_count_before)
+    }
+
+    // Compares the play profiles of n1 and n2 in the context of the successors of n0.
+    // This will do either a normal comparison or one that ignores the
+    pub fn compare(
+        gr: &impl GetRelevance,
+        profiles: &IndexedVec<NodeId, PlayProfile>,
+        n0: NodeId,
+        n1: NodeId,
+        n2: NodeId,
+    ) -> Ordering {
+        match profiles[n0].most_relevant == n0 {
+            true => profiles[n1].cmp_w(&profiles[n2], gr),
+            false => profiles[n1].cmp(&profiles[n2], gr),
+        }
     }
 }

@@ -39,7 +39,7 @@ impl P1Pos {
 }
 
 impl P0Moves {
-    pub fn simplify(&mut self, mut assumption: impl FnMut(BasisElemId, VarId) -> Assumption) {
+    pub fn simplify(&mut self, mut assumption: impl FnMut(P0Pos) -> Assumption) {
         match self.inner.simplify(&mut assumption) {
             Status::Winning => self.inner = FormulaIter::And(Vec::new()),
             Status::Losing => self.exhausted = true,
@@ -86,7 +86,7 @@ impl Default for P1Moves {
 }
 
 enum FormulaIter {
-    Atom(BasisElemId, VarId),
+    Atom(P0Pos),
     // Contains iterators for subformulas.
     And(Vec<FormulaIter>),
     // Contains iterators for subformulas and the currently active subformula.
@@ -115,7 +115,7 @@ enum Status {
 impl FormulaIter {
     fn new(f: &Formula) -> Self {
         match *f {
-            Formula::Atom(b, i) => Self::Atom(b, i),
+            Formula::Atom(b, i) => Self::Atom(P0Pos { b, i }),
             Formula::And(ref children) => Self::And(children.iter().map(Self::new).collect()),
             Formula::Or(ref children) => Self::Or(children.iter().map(Self::new).collect(), 0),
         }
@@ -128,7 +128,7 @@ impl FormulaIter {
 
     fn reset(&mut self) {
         match self {
-            FormulaIter::Atom(_, _) => {}
+            FormulaIter::Atom(_) => {}
             FormulaIter::And(iters) => iters.iter_mut().for_each(Self::reset),
             FormulaIter::Or(iters, pos) => {
                 iters.iter_mut().for_each(Self::reset);
@@ -137,12 +137,9 @@ impl FormulaIter {
         }
     }
 
-    fn simplify(
-        &mut self,
-        assumption: &mut impl FnMut(BasisElemId, VarId) -> Assumption,
-    ) -> Status {
+    fn simplify(&mut self, assumption: &mut impl FnMut(P0Pos) -> Assumption) -> Status {
         match self {
-            FormulaIter::Atom(b, i) => match assumption(*b, *i) {
+            FormulaIter::Atom(p) => match assumption(*p) {
                 Assumption::Winning => Status::Winning,
                 Assumption::Losing => Status::Losing,
                 Assumption::Unknown => Status::Still,
@@ -248,7 +245,7 @@ impl FormulaIter {
     fn current(&self) -> Rc<[P0Pos]> {
         fn inner(iter: &FormulaIter, out: &mut Vec<P0Pos>) {
             match *iter {
-                FormulaIter::Atom(b, i) => out.push(P0Pos { b, i }),
+                FormulaIter::Atom(p) => out.push(p),
                 FormulaIter::And(ref iters) => iters.iter().for_each(|iter| inner(iter, out)),
                 FormulaIter::Or(ref iters, pos) => inner(&iters[pos], out),
             }
@@ -270,7 +267,7 @@ impl FormulaIter {
     fn advance(&mut self) -> bool {
         match self {
             // An atom is always exhausted because it has only 1 item.
-            FormulaIter::Atom(_, _) => false,
+            FormulaIter::Atom(_) => false,
             // Try to advance any iterator from the last, just like adding 1 to a number.
             FormulaIter::And(iters) => iters.iter_mut().rev().any(|iter| iter.advance()),
             FormulaIter::Or(iters, pos) => {

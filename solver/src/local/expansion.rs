@@ -5,16 +5,19 @@ use indexmap::IndexSet;
 use crate::index::{AsIndex, IndexedVec};
 use crate::local::game::WinState;
 use crate::strategy::{NodeId, PlayProfile, Player};
+use crate::symbolic::moves::Assumption;
 
 use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
 
+// Expand the game starting from nodes that are losing for the player controlling them.
+// Returns whether any improvement has occurred.
 pub fn expand(
     game: &mut Game,
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
     final_strategy: &mut IndexedVec<NodeId, NodeId>,
     strategy: &mut GameStrategy,
     explore_goal: usize,
-) {
+) -> bool {
     let mut explored = 0;
     let mut improved = false;
     // Explore a minimum amount of nodes and at least until an improvement is found.
@@ -26,7 +29,7 @@ pub fn expand(
         };
 
         // If there's no node to expand then return.
-        let Some(start) = start else { return };
+        let Some(start) = start else { return !improved };
 
         // Expand the initial node and save its new successor for later.
         let Some(mut next) = expand_one(start, game, strategy) else { continue };
@@ -48,26 +51,33 @@ pub fn expand(
         // Incrementally compute the play profiles of the expanded nodes
         update_profiles(stop, &expanded, game, profiles);
 
-        if !improved {
-            // If the valuation is improve then update the strategy (if start is a p0 node) and return,
-            // otherwise this expansion doesn't improve anything so expand again.
-            let ord = profiles[final_strategy[start]].cmp(&profiles[start_next], game);
-            let player = game.player_of(start);
-
-            if let (Ordering::Less, Player::P0) | (Ordering::Greater, Player::P1) = (ord, player) {
-                improved = true;
+        // See if this improves the profile of start. If it does then update the strategy.
+        let ord = PlayProfile::compare(game, profiles, start, final_strategy[start], start_next);
+        let player = game.player_of(start);
+        if let (Ordering::Less, Player::P0) | (Ordering::Greater, Player::P1) = (ord, player) {
+            if let NodeKind::P0(p0) = game.resolve(start) {
+                let p1 = match game.resolve(start_next) {
+                    NodeKind::L0 | NodeKind::W0 | NodeKind::P0(_) => unreachable!(),
+                    NodeKind::L1 => NodeP1Id::L1,
+                    NodeKind::W1 => NodeP1Id::W1,
+                    NodeKind::P1(p1) => p1,
+                };
+                strategy.update(p0, p1);
             }
+            final_strategy[start] = start_next;
+            improved = true;
+            // TODO: early exit if winner changed?
         }
     }
+
+    false
 }
 
 fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option<Inserted<NodeId>> {
     match game.resolve(n) {
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(p0) => {
-            // TODO: Disable this for now as simplify might not be correct.
-            use crate::symbolic::moves::{Assumption, P0Pos};
-            game.p0.moves[p0].simplify(|b, i| match game.p0.pos.get_index_of(&P0Pos { b, i }) {
+            game.p0.moves[p0].simplify(|p| match game.p0.pos.get_index_of(&p) {
                 Some(p0) => match game.p0.win[p0] {
                     WinState::Unknown => Assumption::Unknown,
                     WinState::Win0 => Assumption::Winning,
