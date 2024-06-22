@@ -10,3 +10,6 @@ edition = "2021"
 indexmap = "2.2.6"
 either = "1.11"
 rustc-hash = "2"
+
+[dev-dependencies]
+itertools = "0.13"

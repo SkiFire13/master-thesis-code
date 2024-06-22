@@ -26,9 +26,7 @@ pub struct P1Moves(Rc<[P0Pos]>, usize);
 
 impl P0Pos {
     pub fn moves(&self, formulas: &EqsFormulas) -> P0Moves {
-        let inner = FormulaIter::new(formulas.get(self.b, self.i));
-        let exhausted = inner.is_false();
-        P0Moves { exhausted, inner }
+        P0Moves::from_formula(formulas.get(self.b, self.i))
     }
 }
 
@@ -39,6 +37,12 @@ impl P1Pos {
 }
 
 impl P0Moves {
+    fn from_formula(formula: &Formula) -> Self {
+        let inner = FormulaIter::new(formula);
+        let exhausted = inner.is_false();
+        P0Moves { exhausted, inner }
+    }
+
     pub fn simplify(&mut self, mut assumption: impl FnMut(P0Pos) -> Assumption) {
         match self.inner.simplify(&mut assumption) {
             Status::Winning => self.inner = FormulaIter::And(Vec::new()),
@@ -278,57 +282,175 @@ impl FormulaIter {
 
 #[cfg(test)]
 mod tests {
-    use super::{BasisElemId, Formula, P0Pos, VarId};
-    use crate::symbolic::moves::{FormulaIter, P0Moves, P1Pos};
+    use itertools::Itertools;
 
-    fn naive_moves(f: &Formula) -> Vec<Vec<P0Pos>> {
-        match *f {
-            Formula::Atom(b, i) => vec![vec![P0Pos { b, i }]],
-            Formula::And(ref children) => {
-                children.iter().map(naive_moves).fold(vec![Vec::new()], |ms1, ms2| {
-                    ms1.iter()
-                        .flat_map(|m1| ms2.iter().map(|m2| [&m1[..], &m2[..]].concat()))
-                        .collect()
-                })
-            }
-            Formula::Or(ref children) => children.iter().flat_map(naive_moves).collect(),
+    use super::{Assumption, BasisElemId, Formula, VarId};
+    use crate::index::AsIndex;
+    use crate::retain::Simplify;
+    use crate::symbolic::moves::{P0Moves, P1Pos};
+
+    macro_rules! formula {
+        ($i:literal) => { Formula::Atom(BasisElemId($i), VarId($i)) };
+        (( $($data:tt)+ )) => { formula!( $($data)* ) };
+        ($($i:tt)&+) => { Formula::And(vec![ $( formula!($i) ),+ ]) };
+        ($($i:tt)|+) => { Formula::Or(vec![ $( formula!($i) ),+ ]) };
+    }
+
+    fn all_moves(f: &Formula) -> Vec<Vec<usize>> {
+        match f {
+            // For tests we always have atoms with b = i
+            Formula::Atom(b, _) => vec![vec![b.to_usize()]],
+            Formula::And(children) => children
+                .iter()
+                .map(all_moves)
+                .multi_cartesian_product()
+                .map(|moves| moves.concat())
+                .collect(),
+            Formula::Or(children) => children.iter().flat_map(all_moves).collect(),
         }
     }
 
-    #[test]
-    fn simple() {
-        let f = Formula::Or(vec![
-            Formula::Atom(BasisElemId(0), VarId(0)),
-            Formula::And(vec![
-                Formula::Or(vec![
-                    Formula::Atom(BasisElemId(1), VarId(1)),
-                    Formula::Atom(BasisElemId(2), VarId(2)),
-                ]),
-                Formula::Or(vec![
-                    Formula::Atom(BasisElemId(3), VarId(3)),
-                    Formula::Atom(BasisElemId(4), VarId(4)),
-                    Formula::Atom(BasisElemId(5), VarId(5)),
-                ]),
-                Formula::Or(vec![
-                    Formula::Atom(BasisElemId(6), VarId(6)),
-                    Formula::Atom(BasisElemId(7), VarId(7)),
-                ]),
-            ]),
-        ]);
-
-        let naive = naive_moves(&f)
-            .into_iter()
-            .map(|mut m| {
-                m.sort_unstable_by_key(|&P0Pos { b, i }| (i, b));
-                m.dedup();
-                P1Pos { moves: m.into() }
+    fn filter_moves(moves: &mut Vec<Vec<usize>>, assumptions: impl Fn(usize) -> Assumption) {
+        moves.retain_mut(|mov| {
+            !crate::retain::simplify(mov, |_, _, pos| match assumptions(*pos) {
+                Assumption::Winning => Simplify::Remove,
+                Assumption::Losing => Simplify::Clear,
+                Assumption::Unknown => Simplify::Keep,
             })
+        });
+
+        let mut i = 0;
+        'outer: while i < moves.len() {
+            for mov in moves[..i].iter().chain(&moves[i + 1..]) {
+                if mov.iter().all(|b| moves[i].contains(b)) {
+                    moves.swap_remove(i);
+                    continue 'outer;
+                }
+            }
+            i += 1;
+        }
+
+        moves.iter_mut().for_each(|mov| mov.sort());
+        moves.sort();
+    }
+
+    fn check_moves(f: &Formula, moves: &[P1Pos], assumptions: impl Fn(usize) -> Assumption) {
+        let mut got_moves = moves
+            .iter()
+            .map(|pos| pos.moves.iter().map(|pos| pos.b.to_usize()).collect())
             .collect::<Vec<_>>();
+        let mut all_moves = all_moves(f);
 
-        let formula_iter = FormulaIter::new(&f);
-        let moves = P0Moves { exhausted: false, inner: formula_iter };
-        let with_iter = moves.collect::<Vec<_>>();
+        filter_moves(&mut got_moves, &assumptions);
+        filter_moves(&mut all_moves, &assumptions);
 
-        assert_eq!(naive, with_iter);
+        if got_moves != all_moves {
+            panic!("expected: {all_moves:?}\n     got: {got_moves:?}");
+        }
+    }
+
+    macro_rules! test_formula {
+        ($( $name:ident ( f = [$($f:tt)*], $($stmts:tt)* ) ),* $(,)?) => {
+            $(
+                #[allow(unused_mut)]
+                #[test]
+                fn $name() {
+                    let f = formula!($($f)*);
+                    let mut moves = P0Moves::from_formula(&f);
+                    let mut out = Vec::new();
+
+                    use std::collections::HashSet;
+                    let mut winning = HashSet::<usize>::new();
+                    let mut losing = HashSet::<usize>::new();
+
+                    test_formula!(@STMT(moves out winning losing) $($stmts)*);
+
+                    check_moves(&f, &out, |b| match () {
+                        _ if winning.contains(&b) => Assumption::Winning,
+                        _ if losing.contains(&b) => Assumption::Losing,
+                        _ => Assumption::Unknown,
+                    });
+                }
+            )*
+        };
+        (@STMT($moves:ident $out:ident $winning:ident $losing:ident) next, $($stmts:tt)*) => {
+            $out.push($moves.next().unwrap());
+            test_formula!(@STMT($moves $out $winning $losing) $($stmts)*);
+        };
+        (@STMT($moves:ident $out:ident $winning:ident $losing:ident) simplify($($win:tt)*), $($stmts:tt)*) => {
+            test_formula!(@WIN($winning $losing) $($win)*);
+            $moves.simplify(|pos| match () {
+                _ if $winning.contains(&pos.b.to_usize()) => Assumption::Winning,
+                _ if $losing.contains(&pos.b.to_usize()) => Assumption::Losing,
+                _ => Assumption::Unknown,
+            });
+            test_formula!(@STMT($moves $out $winning $losing) $($stmts)*);
+        };
+        (@WIN($winning:ident $losing:ident) win $i:literal $(, $($rest:tt)*)?) => {
+            $winning.insert($i);
+            $( test_formula!(@WIN($winning $losing)) $($rest)* )?
+        };
+        (@WIN($winning:ident $losing:ident) lose $i:literal $(, $($rest:tt)*)?) => {
+            $losing.insert($i);
+            $( test_formula!(@WIN($winning $losing)) $($rest)* )?
+        };
+        (@STMT($moves:ident $out:ident $winning:ident $losing:ident) rest) => {
+            $out.extend($moves);
+        };
+    }
+
+    test_formula! {
+        simple(
+            f = [ 0 | ((1 | 2) & (3 | 4 | 5) & (6 | 7)) ],
+            rest
+        ),
+        simplify_l1(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(lose 1),
+            rest
+        ),
+        simplify_l2(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(lose 2),
+            rest
+        ),
+        simplify_l3(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(lose 3),
+            rest
+        ),
+        simplify_l4(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(lose 4),
+            rest
+        ),
+        simplify_w1(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(win 1),
+            rest
+        ),
+        simplify_w2(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(win 2),
+            rest
+        ),
+        simplify_w3(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(win 3),
+            rest
+        ),
+        simplify_w4(
+            f = [ (1 | 2) & (3 | 4) ],
+            next,
+            simplify(win 4),
+            rest
+        ),
     }
 }
