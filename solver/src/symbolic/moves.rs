@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::iter::{IteratorExt, Simplify};
+use crate::retain::{simplify, Simplify};
 
 use super::compose::EqsFormulas;
 use super::eq::VarId;
@@ -147,44 +147,34 @@ impl FormulaIter {
             FormulaIter::And(iters) => {
                 let mut exhausted = None;
                 let mut advanced = false;
-                let mut curr_idx = 0;
 
-                let new_iters = std::mem::take(iters)
-                    .into_iter()
-                    .simplify(|mut iter| {
-                        if advanced || exhausted.is_some() {
-                            iter.reset();
-                        }
+                let cleared = simplify(iters, |_, new_i, iter| {
+                    if advanced || exhausted.is_some() {
+                        iter.reset();
+                    }
 
-                        match iter.simplify(assumption) {
-                            Status::Winning => return Simplify::Remove,
-                            Status::Losing => return Simplify::Break,
-                            Status::Advanced => advanced = true,
-                            Status::Exhausted => exhausted = exhausted.or(Some(curr_idx)),
-                            Status::Still => {}
-                        }
+                    match iter.simplify(assumption) {
+                        Status::Winning => return Simplify::Remove,
+                        Status::Losing => return Simplify::Clear,
+                        Status::Advanced => advanced = true,
+                        Status::Exhausted => exhausted = exhausted.or(Some(new_i)),
+                        Status::Still => {}
+                    }
 
-                        curr_idx += 1;
+                    Simplify::Keep
+                });
 
-                        Simplify::Keep(iter)
-                    })
-                    .collect::<Option<Vec<_>>>();
-
-                let Some(new_iters) = new_iters else { return Status::Losing };
-                *iters = new_iters;
-
-                if iters.is_empty() {
+                if cleared {
+                    Status::Losing
+                } else if iters.is_empty() {
                     // Formula is empty and thus is winning.
                     Status::Winning
                 } else if iters.len() == 1 {
                     // Formula only contains one subformula and is thus equal to that one.
                     *self = iters.pop().unwrap();
-                    // TODO: Is this correct?
-                    match () {
-                        _ if exhausted.is_some() => Status::Exhausted,
-                        _ if advanced => Status::Advanced,
-                        _ => Status::Still,
-                    }
+                    // TODO: Is this correct / can we do better?
+                    self.reset();
+                    Status::Advanced
                 } else if let Some(exhausted) = exhausted {
                     // One of the subformulas was exhausted, try advancing the earlier ones.
                     let advanced = iters[..exhausted].iter_mut().rev().any(|iter| iter.advance());
@@ -200,28 +190,28 @@ impl FormulaIter {
                 let mut advanced = false;
                 let mut exhausted = false;
 
-                let new_iters = std::mem::take(iters)
-                    .into_iter()
-                    .enumerate()
-                    .simplify(|(i, mut iter)| {
-                        match iter.simplify(assumption) {
-                            Status::Winning => return Simplify::Break,
-                            Status::Losing => return Simplify::Remove,
-                            Status::Advanced => advanced |= i == *pos,
-                            Status::Exhausted => exhausted = true,
-                            Status::Still => {}
-                        }
-                        new_pos += if i < *pos { 1 } else { 0 };
-                        Simplify::Keep(iter)
-                    })
-                    .collect::<Option<Vec<_>>>();
+                let cleared = simplify(iters, |old_i, new_i, iter| {
+                    let is_pos = old_i == *pos;
+                    if is_pos {
+                        new_pos = new_i;
+                    }
 
-                let Some(new_iters) = new_iters else { return Status::Winning };
-                *iters = new_iters;
+                    match iter.simplify(assumption) {
+                        Status::Winning => return Simplify::Clear,
+                        Status::Losing => return Simplify::Remove,
+                        Status::Advanced => advanced |= is_pos,
+                        Status::Exhausted => exhausted |= is_pos,
+                        Status::Still => {}
+                    }
+
+                    Simplify::Keep
+                });
                 *pos = new_pos;
 
                 // Handle remaining with 0/1 subformulas
-                if iters.is_empty() {
+                if cleared {
+                    return Status::Winning;
+                } else if iters.is_empty() {
                     return Status::Losing;
                 } else if iters.len() == 1 {
                     *self = iters.pop().unwrap();
