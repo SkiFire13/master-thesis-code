@@ -86,8 +86,8 @@ pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
         let act_not_label = just("!").padded().ignore_then(label.map(Act::NotLabel));
         let act = choice((act_true, act_not_label, act_label)).padded().boxed();
 
-        let tt = text::keyword("tt").map(|_| MuCalc::And(Vec::new()));
-        let ff = text::keyword("ff").map(|_| MuCalc::Or(Vec::new()));
+        let tt = text::keyword("true").map(|_| MuCalc::And(Vec::new()));
+        let ff = text::keyword("false").map(|_| MuCalc::Or(Vec::new()));
         let group = expr.delimited_by(just('('), just(')'));
         let var_atom = var.map(MuCalc::Var);
         let atom = choice((tt, ff, group, var_atom)).padded().boxed();

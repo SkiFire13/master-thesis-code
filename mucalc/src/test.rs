@@ -33,7 +33,7 @@ macro_rules! declare_test {
                 let test = stringify!($f);
 
                 let aut = format!("{tests}/{group}/{group}.aut");
-                let mucalc = format!("{tests}/{group}/{test}");
+                let mucalc = format!("{tests}/{group}/{test}.mcf");
 
                 run_test(&aut, &mucalc, true $(&& $valid)?);
             }
