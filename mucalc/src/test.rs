@@ -28,10 +28,14 @@ macro_rules! declare_test {
         ($($aut:ident : [$($f:ident $(: $valid:literal)?),* $(,)?]),* $(,)?) => { $($(
             #[test]
             fn $f() {
-                let aut = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/", stringify!($aut), ".aut");
-                let mucalc = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/", stringify!($f));
+                let tests = concat!(env!("CARGO_MANIFEST_DIR"), "/tests");
+                let group = stringify!($aut);
+                let test = stringify!($f);
 
-                run_test(aut, mucalc, true $(&& $valid)?);
+                let aut = format!("{tests}/{group}/{group}.aut");
+                let mucalc = format!("{tests}/{group}/{test}");
+
+                run_test(&aut, &mucalc, true $(&& $valid)?);
             }
         )*)* };
     }
@@ -41,19 +45,19 @@ declare_test! {
         bridge_receive_17,
         bridge_report_17,
     ],
-    gossips: [
-        gossips_known_after_7_steps,
-        gossips_known_after_7_steps_mu,
-        gossips_deadlock_liveness,
+    gossip: [
+        gossip1_deadlock_liveness,
+        gossip3_known_after_7_steps,
+        gossip3a_known_after_7_steps_mu,
     ],
     vm01: [
-        vm01_a_always_eventually_ready,
-        vm01_b_ready_always_possible: false,
-        vm01_c_only_coin_after_ready,
-        vm01_d_ready_coin_ready
+        vm01a_always_eventually_ready,
+        vm01b_ready_always_possible: false,
+        vm01c_only_coin_after_ready,
+        vm01d_ready_coin_ready
     ],
     vm02: [
-        vm02_a_no_3_10ct,
-        vm02_b_no_chocolate_10,
+        vm02a_no_3_10ct,
+        vm02b_no_chocolate_10,
     ],
 }

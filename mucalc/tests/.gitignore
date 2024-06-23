@@ -1,0 +1,11 @@
+mcrl22lps
+lps2lts
+ltsconvert
+lps2pbes
+pbes2bool
+*.exe
+*.ps1
+
+*.lps
+*.lts
+*.pbes
