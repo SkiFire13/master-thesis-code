@@ -93,10 +93,10 @@ pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
         let atom = choice((tt, ff, group, var_atom)).padded().boxed();
 
         let modal = recursive(|modal| {
-            let diam_op = act.clone().delimited_by(just('<'), just('>')).padded();
-            let diam = diam_op.then(modal.clone()).map(|(l, e)| MuCalc::Diamond(l, Box::new(e)));
-            let boxx_op = act.delimited_by(just('['), just(']')).padded();
-            let boxx = boxx_op.then(modal.clone()).map(|(l, e)| MuCalc::Box(l, Box::new(e)));
+            let diam_act = act.clone().delimited_by(just('<'), just('>')).padded();
+            let diam = diam_act.then(modal.clone()).map(|(l, e)| MuCalc::Diamond(l, Box::new(e)));
+            let boxx_act = act.delimited_by(just('['), just(']')).padded();
+            let boxx = boxx_act.then(modal.clone()).map(|(l, e)| MuCalc::Box(l, Box::new(e)));
             choice((diam, boxx, atom))
         });
 
