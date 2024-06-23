@@ -8,14 +8,6 @@ use solver::index::IndexedVec;
 
 use crate::{Act, Lts, MuCalc, StateId, Var};
 
-// aut_header        ::=  'des (' first_state ',' nr_of_transitions ',' nr_of_states ')'
-// first_state       ::=  number
-// nr_of_transitions ::=  number
-// nr_of_states      ::=  number
-// aut_edge    ::=  '(' start_state ',' label ',' end_state ')'
-// start_state ::=  number
-// label       ::=  '"' string '"'
-// end_state   ::=  number
 pub fn parse_alt(source: &str) -> Result<Lts> {
     let mut lines = source.lines();
 
@@ -64,18 +56,6 @@ pub fn parse_alt(source: &str) -> Result<Lts> {
     Ok(Lts { first_state, transitions })
 }
 
-// <Atom> ::= `tt' | `ff' | `(' <MuCalc> `)'
-//         | <Id>
-// <ModalOp> ::= `<' <Label> `>' <Atom>
-//         | `[' <Label> `]' <Atom>
-//         | <Atom>
-// <Conjunction> ::= <Atom> (`&&' <Atom>)*
-// <Disjuction>  ::= <Conjunction> (`||' <Conjunction>)*
-// <Fix> ::= | `mu' <Id> `.' <Disjunction>
-//          | `nu' <Id> `.' <Disjunction>
-// <MuCalc> ::= <Fix> | <Disjunction>
-// <Label> ::= `true' | ( provided label ) | `!` ( provided label )
-// <Id> ::= ( a C-style identifier )
 pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
     let expr = recursive(|expr| {
         let var = text::ident().map(Var).padded();
