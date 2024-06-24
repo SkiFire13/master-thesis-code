@@ -455,8 +455,6 @@ mod tests {
         regression_1(
             f = [ (1 | 2) & (3 | 4) & (5 | 6) ],
             next,
-            next,
-            next,
             simplify(win 2),
             rest
         ),
