@@ -80,8 +80,8 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
             game.p0.moves[p0].simplify(|p| match game.p0.pos.get_index_of(&p) {
                 Some(p0) => match game.p0.win[p0] {
                     WinState::Unknown => Assumption::Unknown,
-                    WinState::Win0 => Assumption::Winning,
-                    WinState::Win1 => Assumption::Losing,
+                    WinState::Win0 => Assumption::Win,
+                    WinState::Win1 => Assumption::Lose,
                 },
                 None => Assumption::Unknown,
             });

@@ -44,12 +44,10 @@ impl P0Moves {
     }
 
     pub fn simplify(&mut self, mut assumption: impl FnMut(P0Pos) -> Assumption) {
-        match self.inner.simplify(&mut assumption) {
-            Status::Winning => self.inner = FormulaIter::And(Vec::new()),
-            Status::Losing => self.exhausted = true,
-            Status::Advanced => {}
-            Status::Exhausted => self.exhausted = true,
-            Status::Still => {}
+        match self.inner.simplify(false, &mut assumption) {
+            (Assumption::Win, _) => self.inner = FormulaIter::And(Vec::new()),
+            (Assumption::Lose, _) | (_, Status::Reset) => self.exhausted = true,
+            _ => {}
         }
     }
 }
@@ -97,23 +95,18 @@ enum FormulaIter {
     Or(Vec<FormulaIter>, usize),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Assumption {
-    Winning,
-    Losing,
+    Win,
+    Lose,
     Unknown,
 }
 
+#[derive(Clone, Copy)]
 enum Status {
-    // The subformula is definitely winning for P0.
-    Winning,
-    // The subformula is definitely losing for P0.
-    Losing,
-    // The current represented P1Pos was removed and replaced by a next one.
-    Advanced,
-    // All the remaining P1Pos were removed, but iterator can still be restarted.
-    Exhausted,
-    // The currently represented P1Pos was not removed.
     Still,
+    Step,
+    Reset,
 }
 
 impl FormulaIter {
@@ -130,108 +123,104 @@ impl FormulaIter {
         iters.is_empty()
     }
 
-    fn reset(&mut self) {
+    fn simplify(
+        &mut self,
+        mut reset: bool,
+        assumption: &mut impl FnMut(P0Pos) -> Assumption,
+    ) -> (Assumption, Status) {
         match self {
-            FormulaIter::Atom(_) => {}
-            FormulaIter::And(iters) => iters.iter_mut().for_each(Self::reset),
-            FormulaIter::Or(iters, pos) => {
-                iters.iter_mut().for_each(Self::reset);
-                *pos = 0;
-            }
-        }
-    }
-
-    fn simplify(&mut self, assumption: &mut impl FnMut(P0Pos) -> Assumption) -> Status {
-        match self {
-            FormulaIter::Atom(p) => match assumption(*p) {
-                Assumption::Winning => Status::Winning,
-                Assumption::Losing => Status::Losing,
-                Assumption::Unknown => Status::Still,
-            },
+            FormulaIter::Atom(p) => (assumption(*p), Status::Still),
             FormulaIter::And(iters) => {
-                let mut exhausted = None;
-                let mut advanced = false;
+                let mut adv = reset.then(|| 0);
 
                 let cleared = simplify(iters, |_, new_i, iter| {
-                    if advanced || exhausted.is_some() {
-                        iter.reset();
-                    }
-
-                    match iter.simplify(assumption) {
-                        Status::Winning => return Simplify::Remove,
-                        Status::Losing => return Simplify::Clear,
-                        Status::Advanced => advanced = true,
-                        Status::Exhausted => exhausted = exhausted.or(Some(new_i)),
+                    let (assumption, status) = iter.simplify(reset, assumption);
+                    match status {
                         Status::Still => {}
+                        Status::Step => reset = true,
+                        Status::Reset => adv = adv.or((!reset).then(|| new_i)),
                     }
-
-                    Simplify::Keep
+                    reset |= adv.is_some();
+                    match assumption {
+                        Assumption::Win => Simplify::Remove,
+                        Assumption::Lose => Simplify::Clear,
+                        Assumption::Unknown => Simplify::Keep,
+                    }
                 });
 
-                if cleared {
-                    Status::Losing
-                } else if iters.is_empty() {
-                    // Formula is empty and thus is winning.
-                    Status::Winning
-                } else if iters.len() == 1 {
-                    // Formula only contains one subformula and is thus equal to that one.
+                let assumption = match () {
+                    _ if cleared => Assumption::Lose,
+                    _ if iters.is_empty() => Assumption::Win,
+                    _ => Assumption::Unknown,
+                };
+
+                let status =
+                    match adv.map(|adv| iters[..adv].iter_mut().rev().any(|iter| iter.advance())) {
+                        None => Status::Still,
+                        Some(true) => Status::Step,
+                        Some(false) => Status::Reset,
+                    };
+
+                if iters.len() == 1 {
                     *self = iters.pop().unwrap();
-                    // TODO: Is this correct / can we do better?
-                    self.reset();
-                    Status::Advanced
-                } else if let Some(exhausted) = exhausted {
-                    // One of the subformulas was exhausted, try advancing the earlier ones.
-                    let advanced = iters[..exhausted].iter_mut().rev().any(|iter| iter.advance());
-                    let status = if advanced { Status::Advanced } else { Status::Exhausted };
-                    status
-                } else {
-                    // Nothing changed
-                    Status::Still
                 }
+
+                (assumption, status)
             }
             FormulaIter::Or(iters, pos) => {
-                let mut new_pos = 0;
-                let mut advanced = false;
-                let mut exhausted = false;
-
-                let cleared = simplify(iters, |old_i, new_i, iter| {
-                    let is_pos = old_i == *pos;
-                    if is_pos {
-                        new_pos = new_i;
-                    }
-
-                    match iter.simplify(assumption) {
-                        Status::Winning => return Simplify::Clear,
-                        Status::Losing => return Simplify::Remove,
-                        Status::Advanced => advanced |= is_pos,
-                        Status::Exhausted => exhausted |= is_pos,
-                        Status::Still => {}
-                    }
-
-                    Simplify::Keep
-                });
-                *pos = new_pos;
-
-                // Handle remaining with 0/1 subformulas
-                if cleared {
-                    return Status::Winning;
-                } else if iters.is_empty() {
-                    return Status::Losing;
-                } else if iters.len() == 1 {
-                    *self = iters.pop().unwrap();
-                    return if exhausted { Status::Exhausted } else { Status::Advanced };
+                if reset {
+                    *pos = 0;
                 }
 
-                // Handle current formula being removed/advanced/exhausted.
-                let (new_pos, status) = match () {
-                    _ if *pos >= iters.len() => (0, Status::Exhausted),
-                    _ if exhausted && *pos + 1 == iters.len() => (0, Status::Exhausted),
-                    _ if exhausted && *pos + 1 < iters.len() => (*pos + 1, Status::Advanced),
-                    _ if advanced => (*pos, Status::Advanced),
-                    _ => (*pos, Status::Still),
+                let mut pos_data = (0, false, Status::Still);
+                let mut winning = None;
+
+                simplify(iters, |old_i, new_i, iter| {
+                    let (assumption, status) = iter.simplify(reset, assumption);
+
+                    if old_i == *pos {
+                        pos_data = (new_i, assumption == Assumption::Lose, status);
+                    }
+
+                    if let Assumption::Win = assumption {
+                        winning = winning.or(Some(old_i));
+                    }
+
+                    match assumption {
+                        Assumption::Win => Simplify::Clear,
+                        Assumption::Lose => Simplify::Remove,
+                        Assumption::Unknown => Simplify::Keep,
+                    }
+                });
+
+                let (new_pos, pos_lose, pos_status) = pos_data;
+
+                match winning {
+                    Some(wpos) if wpos < *pos => return (Assumption::Win, Status::Reset),
+                    Some(wpos) if wpos > *pos => return (Assumption::Win, Status::Step),
+                    Some(wpos) if wpos == *pos => return (Assumption::Win, pos_status),
+                    _ => {}
+                }
+
+                if iters.is_empty() {
+                    return (Assumption::Lose, Status::Still);
+                }
+
+                let (new_pos, status) = match pos_status {
+                    _ if new_pos >= iters.len() => (0, Status::Reset),
+                    _ if pos_lose => (new_pos, Status::Step),
+                    Status::Reset if new_pos + 1 == iters.len() => (0, Status::Reset),
+                    Status::Reset => (new_pos + 1, Status::Step),
+                    Status::Step => (new_pos, Status::Step),
+                    Status::Still => (new_pos, Status::Still),
                 };
                 *pos = new_pos;
-                status
+
+                if iters.len() == 1 {
+                    *self = iters.pop().unwrap();
+                }
+
+                (Assumption::Unknown, status)
             }
         }
     }
@@ -313,8 +302,8 @@ mod tests {
     fn filter_moves(moves: &mut Vec<Vec<usize>>, assumptions: impl Fn(usize) -> Assumption) {
         moves.retain_mut(|mov| {
             !crate::retain::simplify(mov, |_, _, pos| match assumptions(*pos) {
-                Assumption::Winning => Simplify::Remove,
-                Assumption::Losing => Simplify::Clear,
+                Assumption::Win => Simplify::Remove,
+                Assumption::Lose => Simplify::Clear,
                 Assumption::Unknown => Simplify::Keep,
             })
         });
@@ -366,8 +355,8 @@ mod tests {
                     test_formula!(@STMT(moves out winning losing) $($stmts)*);
 
                     check_moves(&f, &out, |b| match () {
-                        _ if winning.contains(&b) => Assumption::Winning,
-                        _ if losing.contains(&b) => Assumption::Losing,
+                        _ if winning.contains(&b) => Assumption::Win,
+                        _ if losing.contains(&b) => Assumption::Lose,
                         _ => Assumption::Unknown,
                     });
                 }
@@ -380,8 +369,8 @@ mod tests {
         (@STMT($moves:ident $out:ident $winning:ident $losing:ident) simplify($($win:tt)*), $($stmts:tt)*) => {
             test_formula!(@WIN($winning $losing) $($win)*);
             $moves.simplify(|pos| match () {
-                _ if $winning.contains(&pos.b.to_usize()) => Assumption::Winning,
-                _ if $losing.contains(&pos.b.to_usize()) => Assumption::Losing,
+                _ if $winning.contains(&pos.b.to_usize()) => Assumption::Win,
+                _ if $losing.contains(&pos.b.to_usize()) => Assumption::Lose,
                 _ => Assumption::Unknown,
             });
             test_formula!(@STMT($moves $out $winning $losing) $($stmts)*);
@@ -454,6 +443,13 @@ mod tests {
         ),
         regression_1(
             f = [ (1 | 2) & (3 | 4) & (5 | 6) ],
+            next,
+            simplify(win 2),
+            rest
+        ),
+        regression_2(
+            f = [ (1 | 2) & (3 | 4) & (5 | 6) ],
+            next,
             next,
             simplify(win 2),
             rest
