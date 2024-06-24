@@ -10,7 +10,7 @@ use crate::symbolic::moves::Assumption;
 use super::game::{Game, GameStrategy, Inserted, NodeKind, NodeP1Id};
 
 // Expand the game starting from nodes that are losing for the player controlling them.
-// Returns whether any improvement has occurred.
+// Returns whether no improvement has occurred.
 pub fn expand(
     game: &mut Game,
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
@@ -70,7 +70,7 @@ pub fn expand(
         }
     }
 
-    false
+    !improved
 }
 
 fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option<Inserted<NodeId>> {
