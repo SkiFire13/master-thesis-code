@@ -61,6 +61,7 @@ declare_test! {
         vm02b_no_chocolate_10,
     ],
     dining8: [
-        dining8_eat: false,
+        dining8a_deadlock_liveness: false,
+        dining8b_eat: false,
     ]
 }
