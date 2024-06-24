@@ -8,7 +8,7 @@ op = sys.argv[1]
 if op == "aut":
     base = sys.argv[2]
     f = f"{base}/{base}"
-    subprocess.run(['mcrl22lps', f'{f}.mcrl2', f'{f}.lps' '--timings'])
+    subprocess.run(['mcrl22lps', f'{f}.mcrl2', f'{f}.lps', '--timings'])
     subprocess.run(['lps2lts', f'{f}.lps', f'{f}.lts', '--timings'])
     subprocess.run(['ltsconvert', f'{f}.lts', f'{f}.aut', '--timings'])
     os.remove(f"{f}.lps")

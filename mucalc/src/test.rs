@@ -60,4 +60,7 @@ declare_test! {
         vm02a_no_3_10ct,
         vm02b_no_chocolate_10,
     ],
+    dining8: [
+        dining8_eat: false,
+    ]
 }
