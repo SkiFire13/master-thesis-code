@@ -33,6 +33,9 @@ impl Game {
             for p0 in std::mem::take(&mut self.p1.succs[p1]) {
                 self.p0.preds[p0].remove(&p1);
             }
+
+            // TODO: Optimization: remove predecessors of predecessors,
+            // but be careful not to leave them without successors.
         }
 
         // Optimization: remove successors
@@ -70,6 +73,9 @@ impl Game {
             for p1 in std::mem::take(&mut self.p0.succs[p0]) {
                 self.p1.preds[p1].remove(&p0);
             }
+
+            // TODO: Optimization: remove predecessors of predecessors,
+            // but be careful not to leave them without successors.
         }
 
         // Optimization: remove successors
