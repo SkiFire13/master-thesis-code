@@ -1,14 +1,3 @@
-des (0,13,7)
-(0,"coin20",1)
-(0,"coin10",2)
-(1,"readyC",3)
-(1,"out20",0)
-(1,"readyA",4)
-(2,"out10",0)
-(2,"readyA",3)
-(2,"coin10",5)
-(3,"prod",0)
-(4,"prod",6)
-(5,"readyC",3)
-(5,"out20",0)
-(6,"out10",0)
+version https://git-lfs.github.com/spec/v1
+oid sha256:fa813d053169ffc311e53e7fe7d801b6ca10f473524b40887ed89250eb46692b
+size 214
