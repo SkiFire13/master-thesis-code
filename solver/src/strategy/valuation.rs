@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::collections::VecDeque;
 
 use crate::index::IndexedVec;
@@ -174,12 +173,6 @@ fn subevaluation(
         }
     }
 
-    // Extra: sort the nodes in the profile by their relevance, as that will help
-    // when comparing profiles.
-    for &v in &*graph.k_nodes {
-        profiles[v].relevant_before.sort_by_key(|&n| Reverse(graph.relevance_of(n)));
-    }
-
     // Depending on the player favoured by w maximize or minimize the distances.
     match graph.relevance_of(w).player() {
         Player::P0 => set_maximal_distances(&mut graph, w, profiles, final_strategy),
@@ -238,16 +231,14 @@ fn force_paths(
 fn reach<F, I>(start: NodeId, mut explore: F) -> Set<NodeId>
 where
     F: FnMut(NodeId) -> I,
-    I: IntoIterator<Item = NodeId>,
+    I: Iterator<Item = NodeId>,
 {
     let mut stack = vec![start];
-    let mut set = Set::default();
+    let mut set = Set::from_iter([start]);
 
-    // BFS according to explore
+    // DFS according to explore
     while let Some(node) = stack.pop() {
-        if set.insert(node) {
-            stack.extend(explore(node));
-        }
+        stack.extend(explore(node).filter(|&next| set.insert(next)));
     }
 
     set
