@@ -34,6 +34,70 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
             expand(&mut game, &mut profiles, &mut final_strategy, &mut strategy, expand_goal);
         expand_goal *= 2;
 
+        // for (p0, &n0) in game.p0.ids.enumerate() {
+        //     match game.p0.win[p0] {
+        //         WinState::Unknown => {}
+        //         WinState::Win0 => {
+        //             assert_eq!(game.successors_of(n0).collect::<Vec<_>>(), vec![NodeId::L1])
+        //         }
+        //         WinState::Win1 => {
+        //             assert_eq!(game.successors_of(n0).collect::<Vec<_>>(), vec![NodeId::W1])
+        //         }
+        //     }
+        // }
+        // for (p1, &n1) in game.p1.ids.enumerate() {
+        //     match game.p1.win[p1] {
+        //         WinState::Unknown => {}
+        //         WinState::Win0 => {
+        //             assert_eq!(game.successors_of(n1).collect::<Vec<_>>(), vec![NodeId::W0])
+        //         }
+        //         WinState::Win1 => {
+        //             assert_eq!(game.successors_of(n1).collect::<Vec<_>>(), vec![NodeId::L0])
+        //         }
+        //     }
+        // }
+
+        // for (p0, succs) in game.p0.succs.enumerate() {
+        //     println!(
+        //         "{p0:?} [{:?}] => {succs:?} / {:?} / {}",
+        //         game.p0.win[p0],
+        //         game.p0.preds[p0],
+        //         game.p0.moves[p0].is_exhausted()
+        //     );
+
+        //     if game.p0.win[p0] != WinState::Unknown {
+        //         assert!(succs.is_empty(), "{p0:?}");
+        //     }
+
+        //     for &p1 in succs {
+        //         assert!(game.p1.preds[p1].contains(&p0));
+        //     }
+        // }
+
+        // for (p1, succs) in game.p1.succs.enumerate() {
+        //     println!("{p1:?} [{:?}] => {succs:?} / {:?}", game.p1.win[p1], game.p1.preds[p1]);
+
+        //     if game.p1.win[p1] != WinState::Unknown {
+        //         assert!(succs.is_empty(), "{p1:?}")
+        //     }
+
+        //     for &p0 in succs {
+        //         assert!(game.p0.preds[p0].contains(&p1));
+        //     }
+        // }
+
+        // for (p0, preds) in game.p0.preds.enumerate() {
+        //     for &p1 in preds {
+        //         assert!(game.p1.succs[p1].contains(&p0));
+        //     }
+        // }
+
+        // for (p1, preds) in game.p1.preds.enumerate() {
+        //     for &p0 in preds {
+        //         assert!(game.p0.succs[p0].contains(&p1));
+        //     }
+        // }
+
         // If expansion finished the successors and no improvement happened then see who won.
         if solved {
             update_winning_sets(&mut game, &profiles, &mut final_strategy, &mut strategy);

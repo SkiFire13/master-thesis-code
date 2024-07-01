@@ -28,6 +28,18 @@ pub enum NodeKind {
     P1(NodeP1Id),
 }
 
+impl NodeKind {
+    pub fn expect_p0(self) -> NodeP0Id {
+        let Self::P0(p0) = self else { panic!() };
+        p0
+    }
+
+    pub fn expect_p1(self) -> NodeP1Id {
+        let Self::P1(p1) = self else { panic!() };
+        p1
+    }
+}
+
 new_index!(pub index NodeP0Id);
 new_index!(pub index NodeP1Id);
 

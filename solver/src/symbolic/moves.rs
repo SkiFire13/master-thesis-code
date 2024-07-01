@@ -50,6 +50,17 @@ impl P0Moves {
             _ => {}
         }
     }
+
+    pub fn is_exhausted(&self) -> bool {
+        self.exhausted
+    }
+}
+
+impl P1Moves {
+    pub fn is_exhausted(&self) -> bool {
+        let P1Moves(moves, index) = self;
+        *index >= moves.len()
+    }
 }
 
 impl Iterator for P0Moves {

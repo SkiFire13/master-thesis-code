@@ -32,6 +32,7 @@ pub fn expand(
         let Some(start) = start else { return !improved };
 
         // Expand the initial node and save its new successor for later.
+        let mut prev = start;
         let Some(mut next) = expand_one(start, game, strategy) else { continue };
         let start_next = next.id();
 
@@ -43,6 +44,7 @@ pub fn expand(
                 Inserted::Existing(n) => break n,
             };
             expanded.insert(n);
+            prev = n;
             next = expand_one(n, game, strategy).unwrap();
             final_strategy.push(next.id());
             explored += 1;
@@ -66,7 +68,22 @@ pub fn expand(
             }
             final_strategy[start] = start_next;
             improved = true;
-            // TODO: early exit if winner changed?
+        }
+
+        // Update definitely winning nodes (could have no successors or could reach a losing node).
+        // Needs to be done after updating profiles since those assume the expanded path hasn't been altered,
+        // which this however does.
+        let prev = game.resolve(prev);
+        match game.resolve(stop) {
+            NodeKind::W0 => game.set_p1_losing(prev.expect_p1(), strategy, final_strategy),
+            NodeKind::W1 => game.set_p0_losing(prev.expect_p0(), strategy, final_strategy),
+            NodeKind::P0(p0) if game.p0.win[p0] == WinState::Win1 => {
+                game.set_p1_winning(prev.expect_p1(), strategy, final_strategy);
+            }
+            NodeKind::P1(p1) if game.p1.win[p1] == WinState::Win0 => {
+                game.set_p0_winning(prev.expect_p0(), strategy, final_strategy);
+            }
+            _ => {}
         }
     }
 
@@ -91,7 +108,6 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
 
                 // Simplification removed all edges (if there were any)
                 if game.p0.succs[p0].is_empty() {
-                    game.p0.w1.insert(p0);
                     strategy.try_add(p0, NodeP1Id::W1);
                     return Some(Inserted::Existing(NodeId::W1));
                 }
@@ -117,7 +133,6 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
 
                 // Simplification removed all the edges (if there were any)
                 if game.p1.succs[p1].is_empty() {
-                    game.p1.w0.insert(p1);
                     return Some(Inserted::Existing(NodeId::W0));
                 }
 
