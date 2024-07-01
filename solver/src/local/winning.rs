@@ -20,7 +20,7 @@ impl Game {
 
         // Optimization: remove successors
         for p1 in std::mem::take(&mut self.p0.succs[p0]) {
-            self.p1.preds[p1].remove(&p0);
+            self.p1.preds[p1].swap_remove(&p0);
         }
 
         // Optimization: remove successors of predecessors
@@ -46,12 +46,12 @@ impl Game {
 
         // Optimization: remove successors of predecessors
         for p1 in std::mem::take(&mut self.p0.succs[p0]) {
-            self.p1.preds[p1].remove(&p0);
+            self.p1.preds[p1].swap_remove(&p0);
         }
 
         // Optimization: remove predecessors of predecessors
         for p1 in std::mem::take(&mut self.p0.preds[p0]) {
-            self.p1.succs[p1].remove(&p0);
+            self.p1.succs[p1].swap_remove(&p0);
             if self.p1.succs[p1].is_empty() {
                 final_strategy[self.p1.ids[p1]] = NodeId::W0;
             }
@@ -73,7 +73,7 @@ impl Game {
 
         // Optimization: remove successors
         for p0 in std::mem::take(&mut self.p1.succs[p1]) {
-            self.p0.preds[p0].remove(&p1);
+            self.p0.preds[p0].swap_remove(&p1);
         }
 
         // Optimization: remove successors of predecessors
@@ -89,24 +89,25 @@ impl Game {
         strategy: &mut GameStrategy,
         final_strategy: &mut IndexedVec<NodeId, NodeId>,
     ) {
-        // Mark predecessors as winning and complete.
         self.p1.win[p1] = WinState::Win1;
         self.p1.w1.insert(p1);
         self.p1.incomplete.swap_remove(&p1);
+
         // Fixup strategy
         final_strategy[self.p1.ids[p1]] = NodeId::L0;
 
-        // Optimization: remove successors of predecessors
+        // Optimization: remove edges to successors
         for p0 in std::mem::take(&mut self.p1.succs[p1]) {
-            self.p0.preds[p0].remove(&p1);
+            self.p0.preds[p0].swap_remove(&p1);
         }
 
-        // Optimization: remove predecessors of predecessors
+        // Optimization: remove edges from predecessors
         for p0 in std::mem::take(&mut self.p1.preds[p1]) {
-            self.p0.succs[p0].remove(&p1);
+            self.p0.succs[p0].swap_remove(&p1);
 
+            // If the strategy followed this edge it needs to be fixed.
             if strategy.direct[p0] == p1 {
-                if let Some(&p1) = self.p0.succs[p0].iter().next() {
+                if let Some(&p1) = self.p0.succs[p0].last() {
                     strategy.update(p0, p1);
                     final_strategy[self.p0.ids[p0]] = self.p1.ids[p1];
                 } else {

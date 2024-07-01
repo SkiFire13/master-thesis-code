@@ -3,7 +3,7 @@ use std::rc::Rc;
 use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
-use crate::strategy::{NodeId, Player, Relevance, Set, SetQueue};
+use crate::strategy::{NodeId, Player, Relevance, Set};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
 use crate::symbolic::formula::BasisElemId;
@@ -60,7 +60,7 @@ pub struct NodesData<I, P, M, O> {
     // Set of successors for each node.
     pub succs: IndexedVec<I, Set<O>>,
     // Set of nodes that still have unexplored edges.
-    pub incomplete: SetQueue<I>,
+    pub incomplete: Set<I>,
     // Which player definitely wins on this node
     pub win: IndexedVec<I, WinState>,
     // Set of this player's nodes where player 0 wins
@@ -306,9 +306,9 @@ impl GameStrategy {
     pub fn update(&mut self, p0: NodeP0Id, p1: NodeP1Id) {
         let op1 = self.direct[p0];
         match op1 {
-            NodeP1Id::W1 => _ = self.inverse_w1.remove(&p0),
-            NodeP1Id::L1 => _ = self.inverse_l1.remove(&p0),
-            op1 => _ = self.inverse[op1].remove(&p0),
+            NodeP1Id::W1 => _ = self.inverse_w1.swap_remove(&p0),
+            NodeP1Id::L1 => _ = self.inverse_l1.swap_remove(&p0),
+            op1 => _ = self.inverse[op1].swap_remove(&p0),
         }
 
         self.direct[p0] = p1;

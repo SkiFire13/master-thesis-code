@@ -16,8 +16,7 @@ pub use improve::improve;
 pub use profile::PlayProfile;
 pub use valuation::valuation;
 
-pub type SetQueue<T> = indexmap::IndexSet<T, rustc_hash::FxBuildHasher>;
-pub type Set<T> = rustc_hash::FxHashSet<T>;
+pub type Set<T> = indexmap::IndexSet<T, rustc_hash::FxBuildHasher>;
 pub type NodeMap<T> = rustc_hash::FxHashMap<NodeId, T>;
 
 pub trait Strategy {

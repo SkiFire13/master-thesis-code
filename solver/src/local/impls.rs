@@ -107,9 +107,9 @@ impl StrategyMut for GameStrategy {
 
             // Remove the old edge from the inverse strategy
             match *p1 {
-                NodeP1Id::W1 => _ = self.inverse_w1.remove(&p0),
-                NodeP1Id::L1 => _ = self.inverse_l1.remove(&p0),
-                p1 => _ = self.inverse[p1].remove(&p0),
+                NodeP1Id::W1 => _ = self.inverse_w1.swap_remove(&p0),
+                NodeP1Id::L1 => _ = self.inverse_l1.swap_remove(&p0),
+                p1 => _ = self.inverse[p1].swap_remove(&p0),
             }
 
             // Update p1 by reverse resolving nn1
