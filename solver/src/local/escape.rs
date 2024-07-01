@@ -51,10 +51,10 @@ pub fn update_winning_sets(
 fn find_escape_set<I: Iterator<Item = NodeId>>(
     escaping: impl Iterator<Item = NodeId>,
     predecessors_of: impl Fn(NodeId) -> I,
-    strategy: &IndexedVec<NodeId, NodeId>,
+    final_strategy: &IndexedVec<NodeId, NodeId>,
 ) -> Set<NodeId> {
-    let mut inverse_strategy = IndexedVec::from(vec![Vec::new(); strategy.len()]);
-    for (n, &m) in strategy.enumerate() {
+    let mut inverse_strategy = IndexedVec::from(vec![Vec::new(); final_strategy.len()]);
+    for (n, &m) in final_strategy.enumerate() {
         inverse_strategy[m].push(n);
     }
 
