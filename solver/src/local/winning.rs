@@ -104,9 +104,15 @@ impl Game {
         // Optimization: remove predecessors of predecessors
         for p0 in std::mem::take(&mut self.p1.preds[p1]) {
             self.p0.succs[p0].remove(&p1);
-            if self.p0.succs[p0].is_empty() {
-                strategy.update(p0, NodeP1Id::W1);
-                final_strategy[self.p0.ids[p0]] = NodeId::W0;
+
+            if strategy.direct[p0] == p1 {
+                if let Some(&p1) = self.p0.succs[p0].iter().next() {
+                    strategy.update(p0, p1);
+                    final_strategy[self.p0.ids[p0]] = self.p1.ids[p1];
+                } else {
+                    strategy.update(p0, NodeP1Id::W1);
+                    final_strategy[self.p0.ids[p0]] = NodeId::W1;
+                }
             }
         }
     }
