@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "solver",
     "mucalc",
-    "parity"
+    "parity",
+    "new_solver"
 ]
 
