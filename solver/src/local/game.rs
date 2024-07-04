@@ -93,6 +93,8 @@ pub struct Game {
     // Player 0 nodes grouped by VarId, used for sorting by reward.
     // Each inner vec is assumed to be sorted by NodeId.
     pub var_to_p0: IndexedVec<VarId, Vec<NodeP0Id>>,
+
+    pub last_simplified: IndexedVec<NodeP0Id, usize>,
 }
 
 impl Game {
@@ -104,6 +106,8 @@ impl Game {
             p1: NodesData::default(),
             nodes: IndexedVec::from(vec![NodeKind::W0, NodeKind::L0, NodeKind::W1, NodeKind::L1]),
             var_to_p0: IndexedVec::from(vec![Vec::new(); var_count]),
+
+            last_simplified: IndexedVec::new(),
         };
 
         game.insert_p0(P0Pos { b, i });
@@ -223,6 +227,7 @@ impl Game {
         self.p0.win.push(WinState::Unknown);
 
         self.var_to_p0[pos.i].push(n);
+        self.last_simplified.push(0);
 
         Inserted::New(n)
     }
@@ -254,6 +259,10 @@ impl Game {
     pub fn insert_p0_to_p1_edge(&mut self, pred: NodeP0Id, succ: NodeP1Id) {
         self.p1.preds[succ].insert(pred);
         self.p0.succs[pred].insert(succ);
+    }
+
+    pub fn simplification_epoch(&self) -> usize {
+        self.p0.w0.len() + self.p0.w0.len()
     }
 }
 

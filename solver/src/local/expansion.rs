@@ -94,14 +94,17 @@ fn expand_one(n: NodeId, game: &mut Game, strategy: &mut GameStrategy) -> Option
     match game.resolve(n) {
         NodeKind::W0 | NodeKind::L0 | NodeKind::W1 | NodeKind::L1 => unreachable!(),
         NodeKind::P0(p0) => {
-            game.p0.moves[p0].simplify(|p| match game.p0.pos.get_index_of(&p) {
-                Some(p0) => match game.p0.win[p0] {
-                    WinState::Unknown => Assumption::Unknown,
-                    WinState::Win0 => Assumption::Win,
-                    WinState::Win1 => Assumption::Lose,
-                },
-                None => Assumption::Unknown,
-            });
+            if game.last_simplified[p0] < game.simplification_epoch() {
+                game.p0.moves[p0].simplify(|p| match game.p0.pos.get_index_of(&p) {
+                    Some(p0) => match game.p0.win[p0] {
+                        WinState::Unknown => Assumption::Unknown,
+                        WinState::Win0 => Assumption::Win,
+                        WinState::Win1 => Assumption::Lose,
+                    },
+                    None => Assumption::Unknown,
+                });
+                game.last_simplified[p0] = game.simplification_epoch();
+            }
 
             let Some(pos) = game.p0.moves[p0].next() else {
                 game.p0.incomplete.swap_remove(&p0);
