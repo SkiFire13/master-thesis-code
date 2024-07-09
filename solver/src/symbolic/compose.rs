@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::index::{AsIndex, IndexedVec};
@@ -9,7 +10,7 @@ use super::formula::{simplify_and, simplify_or, BasisElemId, Formula};
 #[derive(Clone)]
 pub struct FunsFormulas {
     generators: IndexedVec<FunId, Rc<dyn Fn(BasisElemId) -> Formula>>,
-    cache: IndexedVec<FunId, Map<BasisElemId, Rc<Formula>>>,
+    cache: IndexedVec<FunId, RefCell<Map<BasisElemId, Rc<Formula>>>>,
 }
 
 impl FunsFormulas {
@@ -19,6 +20,7 @@ impl FunsFormulas {
         let cache = formulas
             .into_iter()
             .map(|formulas| formulas.into_enumerate().map(|(i, f)| (i, Rc::new(f))).collect())
+            .map(RefCell::new)
             .collect();
 
         Self { generators, cache }
@@ -27,37 +29,38 @@ impl FunsFormulas {
     pub fn with_generators(
         generators: IndexedVec<FunId, Rc<dyn Fn(BasisElemId) -> Formula>>,
     ) -> Self {
-        let cache = generators.iter().map(|_| Map::default()).collect();
+        let cache = generators.iter().map(|_| RefCell::new(Map::default())).collect();
         Self { generators, cache }
     }
 
-    pub fn get(&mut self, b: BasisElemId, f: FunId) -> Rc<Formula> {
-        self.cache[f].entry(b).or_insert_with(|| Rc::new((self.generators[f])(b))).clone()
+    pub fn get(&self, b: BasisElemId, f: FunId) -> Rc<Formula> {
+        self.cache[f]
+            .borrow_mut()
+            .entry(b)
+            .or_insert_with(|| Rc::new((self.generators[f])(b)))
+            .clone()
     }
 }
 
 #[derive(Clone)]
 pub struct EqsFormulas {
-    // /// 2D array with BasisElemId indexing columns and VarId indexing rows.
-    // moves: IndexedVec<VarId, IndexedVec<BasisElemId, Formula>>,
-    // /// Type of fixpoint for each equation.
-    // eq_fix_types: IndexedVec<VarId, FixType>,
     eqs: IndexedVec<VarId, FixEq>,
-    cache: IndexedVec<VarId, Map<BasisElemId, Formula>>,
-
-    funs: FunsFormulas,
+    cache: IndexedVec<VarId, RefCell<Map<BasisElemId, Rc<Formula>>>>,
+    funs: Rc<FunsFormulas>,
 }
 
 impl EqsFormulas {
-    pub fn new(eqs: IndexedVec<VarId, FixEq>, funs: FunsFormulas) -> Self {
-        let cache = eqs.iter().map(|_| Map::default()).collect();
+    pub fn new(eqs: IndexedVec<VarId, FixEq>, funs: Rc<FunsFormulas>) -> Self {
+        let cache = eqs.iter().map(|_| RefCell::new(Map::default())).collect();
         Self { eqs, cache, funs }
     }
 
-    pub(super) fn get(&mut self, b: BasisElemId, i: VarId) -> &Formula {
+    pub(super) fn get(&self, b: BasisElemId, i: VarId) -> Rc<Formula> {
         self.cache[i]
+            .borrow_mut()
             .entry(b)
-            .or_insert_with(|| compose_moves(&self.eqs[i].expr, b, &mut self.funs))
+            .or_insert_with(|| Rc::new(compose_moves(&self.eqs[i].expr, b, &self.funs)))
+            .clone()
     }
 
     pub fn eq_fix_type(&self, i: VarId) -> FixType {
@@ -69,7 +72,7 @@ impl EqsFormulas {
     }
 }
 
-fn compose_moves(expr: &Expr, b: BasisElemId, moves: &mut FunsFormulas) -> Formula {
+fn compose_moves(expr: &Expr, b: BasisElemId, moves: &FunsFormulas) -> Formula {
     match expr {
         Expr::Var(i) => Formula::Atom(b, *i),
         Expr::And(exprs) => simplify_and(exprs.iter().map(|e| compose_moves(e, b, moves))),
@@ -78,7 +81,7 @@ fn compose_moves(expr: &Expr, b: BasisElemId, moves: &mut FunsFormulas) -> Formu
     }
 }
 
-fn subst(formula: &Formula, args: &[Expr], moves: &mut FunsFormulas) -> Formula {
+fn subst(formula: &Formula, args: &[Expr], moves: &FunsFormulas) -> Formula {
     match formula {
         Formula::Atom(b, i) => compose_moves(&args[i.to_usize()], *b, moves),
         Formula::And(fs) => simplify_and(fs.iter().map(|f| subst(f, args, moves))),

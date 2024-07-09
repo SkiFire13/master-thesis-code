@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use mucalc::{mucalc_to_fix, parse_alt, parse_mucalc};
 use solver::local::solve;
 use solver::symbolic::compose::EqsFormulas;
@@ -17,7 +19,7 @@ fn main() {
     let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, &lts);
     let init_b = lts.first_state.to_basis_elem();
     let init_v = eqs.last_index().unwrap();
-    let formulas = EqsFormulas::new(eqs, funs_formulas);
+    let formulas = Rc::new(EqsFormulas::new(eqs, Rc::new(funs_formulas)));
 
     println!("Preprocessing took {:?}", now.elapsed());
 

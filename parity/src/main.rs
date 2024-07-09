@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use parity::{parity_game_to_fix, parse_parity_game};
 use solver::local::solve;
 use solver::symbolic::compose::EqsFormulas;
@@ -16,7 +18,7 @@ fn main() {
     let graph = parse_parity_game(&file).expect("Failed to parse parity game file");
 
     let (eqs, funs_formulas, node_id_to_var_id) = parity_game_to_fix(&graph);
-    let formulas = EqsFormulas::new(eqs, funs_formulas);
+    let formulas = Rc::new(EqsFormulas::new(eqs, Rc::new(funs_formulas)));
     let init_b = BasisElemId(0);
     let init_v = node_id_to_var_id[&node];
 

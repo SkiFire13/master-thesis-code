@@ -1,10 +1,11 @@
+use std::rc::Rc;
+
 use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
 use crate::strategy::{NodeId, Player, Relevance, Set};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::{FixType, VarId};
-use crate::symbolic::formula::BasisElemId;
 use crate::symbolic::moves::{P0Moves, P0Pos, P1Moves, P1Pos};
 
 impl NodeId {
@@ -81,7 +82,7 @@ pub struct NodesData<I, P, M, O> {
 
 pub struct Game {
     // Formulas representing the equations in the system.
-    pub formulas: EqsFormulas,
+    pub formulas: Rc<EqsFormulas>,
     // Data for player 0 nodes.
     pub p0: NodesData<NodeP0Id, P0Pos, P0Moves, NodeP1Id>,
     // Data for player 1 nodes.
@@ -96,7 +97,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(b: BasisElemId, i: VarId, formulas: EqsFormulas) -> Self {
+    pub fn new(init: P0Pos, formulas: Rc<EqsFormulas>) -> Self {
         let var_count = formulas.var_count();
         let mut game = Self {
             formulas,
@@ -108,7 +109,7 @@ impl Game {
             last_simplified: IndexedVec::new(),
         };
 
-        game.insert_p0(P0Pos { b, i });
+        game.insert_p0(init);
 
         game
     }
@@ -218,7 +219,7 @@ impl Game {
 
         // If the node is new we need to setup its slot in the various IndexVecs
         self.p0.ids.push(self.nodes.push(NodeKind::P0(n)));
-        self.p0.moves.push(pos.moves(&mut self.formulas));
+        self.p0.moves.push(pos.moves(&self.formulas));
         self.p0.preds.push(Set::default());
         self.p0.succs.push(Set::default());
         self.p0.incomplete.insert(n);

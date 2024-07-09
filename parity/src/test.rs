@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use chumsky::error::Simple;
 use chumsky::primitive::{choice, just, none_of};
 use chumsky::text::{self, TextParser};
@@ -30,7 +32,7 @@ fn parse_parity_sol(source: &str) -> Result<Vec<(usize, Player)>, Vec<Simple<cha
 fn run_test(input: &str, sol: &str) {
     let game = parse_parity_game(input).unwrap();
     let (eqs, funs_formulas, node_id_to_var_id) = parity_game_to_fix(&game);
-    let formulas = EqsFormulas::new(eqs, funs_formulas);
+    let formulas = Rc::new(EqsFormulas::new(eqs, Rc::new(funs_formulas)));
     let init_b = BasisElemId(0);
 
     let sol = parse_parity_sol(sol).unwrap();
