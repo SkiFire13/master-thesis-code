@@ -1,19 +1,18 @@
-use std::rc::Rc;
-
 use crate::index::IndexedVec;
 use crate::local::game::WinState;
 use crate::strategy::{improve, valuation, NodeId, PlayProfile};
 use crate::symbolic::compose::EqsFormulas;
 use crate::symbolic::eq::VarId;
 use crate::symbolic::formula::BasisElemId;
+use crate::symbolic::moves::P0Pos;
 
 use super::escape::update_winning_sets;
 use super::expansion::expand;
 use super::game::{Game, GameStrategy, NodeP0Id, NodeP1Id};
 
-pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
+pub fn solve(b: BasisElemId, i: VarId, mut moves: EqsFormulas) -> bool {
     // Special case to ensure there's always a move possible.
-    if moves.get(b, i).is_false() {
+    if (P0Pos { b, i }).moves(&mut moves).is_exhausted() {
         return false;
     }
 

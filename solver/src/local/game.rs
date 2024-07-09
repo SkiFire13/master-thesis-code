@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use either::Either::{Left, Right};
 
 use crate::index::{new_index, AsIndex, IndexedSet, IndexedVec};
@@ -83,7 +81,7 @@ pub struct NodesData<I, P, M, O> {
 
 pub struct Game {
     // Formulas representing the equations in the system.
-    pub formulas: Rc<EqsFormulas>,
+    pub formulas: EqsFormulas,
     // Data for player 0 nodes.
     pub p0: NodesData<NodeP0Id, P0Pos, P0Moves, NodeP1Id>,
     // Data for player 1 nodes.
@@ -98,7 +96,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(b: BasisElemId, i: VarId, formulas: Rc<EqsFormulas>) -> Self {
+    pub fn new(b: BasisElemId, i: VarId, formulas: EqsFormulas) -> Self {
         let var_count = formulas.var_count();
         let mut game = Self {
             formulas,
@@ -135,7 +133,7 @@ impl Game {
             // Priority proportional to the equation/variable index, going from 1 to 2 * var_count
             NodeKind::P0(n) => {
                 let i = self.p0.pos[n].i;
-                let fix_type = self.formulas.eq_fix_types[i];
+                let fix_type = self.formulas.eq_fix_type(i);
                 2 * i.to_usize() + if fix_type == FixType::Max { 2 } else { 1 }
             }
             // This is irrelevant
@@ -190,7 +188,7 @@ impl Game {
         let iter = |fix_type| {
             self.var_to_p0
                 .enumerate()
-                .filter(move |&(i, _)| self.formulas.eq_fix_types[i] == fix_type)
+                .filter(move |&(i, _)| self.formulas.eq_fix_type(i) == fix_type)
                 .flat_map(|(_, nodes)| nodes)
                 .map(|&n0| self.p0.ids[n0])
         };
@@ -220,7 +218,7 @@ impl Game {
 
         // If the node is new we need to setup its slot in the various IndexVecs
         self.p0.ids.push(self.nodes.push(NodeKind::P0(n)));
-        self.p0.moves.push(pos.moves(&self.formulas));
+        self.p0.moves.push(pos.moves(&mut self.formulas));
         self.p0.preds.push(Set::default());
         self.p0.succs.push(Set::default());
         self.p0.incomplete.insert(n);

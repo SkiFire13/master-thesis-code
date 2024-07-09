@@ -13,8 +13,7 @@ pub fn bisimilarity_to_fix(lts1: &Lts, lts2: &Lts) -> (IndexedVec<VarId, FixEq>,
         .indexes()
         .flat_map(|s1| lts2.transitions.indexes().map(move |s2| formula_for(s1, s2, lts1, lts2)))
         .collect();
-    let basis_len = lts1.transitions.len() * lts2.transitions.len();
-    let funs_formulas = FunsFormulas::new(IndexedVec::from(vec![formulas]), basis_len);
+    let funs_formulas = FunsFormulas::new(IndexedVec::from(vec![formulas]));
 
     (eqs, funs_formulas)
 }

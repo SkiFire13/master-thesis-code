@@ -34,7 +34,7 @@ pub fn parity_game_to_fix(
         })
         .collect();
 
-    let funs_formulas = FunsFormulas::new(IndexedVec::new(), 1);
+    let funs_formulas = FunsFormulas::new(IndexedVec::new());
 
     (eqs, funs_formulas, node_id_to_var_id)
 }

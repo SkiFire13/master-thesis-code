@@ -37,7 +37,7 @@ pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: &Lts) -> (IndexedVec<VarId, FixEq>, 
         ctx.sys.push(FixEq { fix_type: FixType::Min, expr });
     }
 
-    (ctx.sys, FunsFormulas::new(ctx.formulas, lts.transitions.len()))
+    (ctx.sys, FunsFormulas::new(ctx.formulas))
 }
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]

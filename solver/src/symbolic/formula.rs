@@ -4,7 +4,7 @@ use super::eq::VarId;
 
 new_index!(pub index BasisElemId);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Formula {
     Atom(BasisElemId, VarId),
     And(Vec<Formula>),

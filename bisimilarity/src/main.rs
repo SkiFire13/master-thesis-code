@@ -1,9 +1,8 @@
-use std::rc::Rc;
-
 use bisimilarity::{bisimilarity_to_fix, make_basis_elem};
 use mucalc::{parse_alt, StateId};
 use solver::local::solve;
 use solver::symbolic::compose::EqsFormulas;
+use solver::symbolic::eq::VarId;
 
 fn main() {
     let alt1_path = std::env::args().nth(1).expect("No first alt file provided");
@@ -24,9 +23,9 @@ fn main() {
 
     let (eqs, funs_formulas) = bisimilarity_to_fix(&lts1, &lts2);
 
-    let formulas = Rc::new(EqsFormulas::new(&eqs, &funs_formulas));
+    let formulas = EqsFormulas::new(eqs, funs_formulas);
     let init_b = make_basis_elem(init1, init2, &lts1, &lts2);
-    let init_v = eqs.last_index().unwrap();
+    let init_v = VarId(0);
 
     println!("Preprocessing took {:?}", now.elapsed());
 

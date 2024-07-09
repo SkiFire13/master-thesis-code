@@ -2,6 +2,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
+#[derive(Clone)]
 pub struct IndexedVec<I, T> {
     vec: Vec<T>,
     _marker: PhantomData<I>,
@@ -30,6 +31,12 @@ impl<I: AsIndex, T> IndexedVec<I, T> {
         let index = I::from_usize(self.len());
         self.vec.push(value);
         index
+    }
+
+    pub fn into_enumerate(
+        self,
+    ) -> impl Iterator<Item = (I, T)> + DoubleEndedIterator + ExactSizeIterator {
+        self.vec.into_iter().enumerate().map(|(i, t)| (I::from_usize(i), t))
     }
 
     pub fn enumerate(
@@ -88,6 +95,14 @@ impl<I, T, const N: usize> From<[T; N]> for IndexedVec<I, T> {
 impl<I, T> FromIterator<T> for IndexedVec<I, T> {
     fn from_iter<IT: IntoIterator<Item = T>>(iter: IT) -> Self {
         Vec::from_iter(iter).into()
+    }
+}
+
+impl<I, T> IntoIterator for IndexedVec<I, T> {
+    type IntoIter = std::vec::IntoIter<T>;
+    type Item = T;
+    fn into_iter(self) -> Self::IntoIter {
+        self.vec.into_iter()
     }
 }
 

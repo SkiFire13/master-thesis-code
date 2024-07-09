@@ -3,7 +3,7 @@ use crate::index::new_index;
 new_index!(pub index VarId);
 new_index!(pub index FunId);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     Var(VarId),
     And(Vec<Expr>),
@@ -22,6 +22,7 @@ pub enum FixType {
     Max,
 }
 
+#[derive(Clone)]
 pub struct FixEq {
     pub fix_type: FixType,
     pub expr: Expr,

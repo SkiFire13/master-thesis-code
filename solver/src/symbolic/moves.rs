@@ -25,7 +25,7 @@ pub struct P0Moves {
 pub struct P1Moves(Rc<[P0Pos]>, usize);
 
 impl P0Pos {
-    pub fn moves(&self, formulas: &EqsFormulas) -> P0Moves {
+    pub fn moves(&self, formulas: &mut EqsFormulas) -> P0Moves {
         P0Moves::from_formula(formulas.get(self.b, self.i))
     }
 }

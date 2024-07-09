@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use solver::local::solve;
 use solver::symbolic::compose::EqsFormulas;
 
@@ -17,7 +15,7 @@ fn run_test(aut_path: &str, mucalc_path: &str, expected: bool) {
 
     let init_b = lts.first_state.to_basis_elem();
     let init_v = eqs.last_index().unwrap();
-    let formulas = Rc::new(EqsFormulas::new(&eqs, &funs_formulas));
+    let formulas = EqsFormulas::new(eqs, funs_formulas);
 
     let is_valid = solve(init_b, init_v, formulas);
 
