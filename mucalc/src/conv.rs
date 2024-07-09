@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use solver::index::{AsIndex, IndexedSet, IndexedVec};
 use solver::symbolic::compose::FunsFormulas;
@@ -13,9 +14,9 @@ impl StateId {
     }
 }
 
-pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: &Lts) -> (IndexedVec<VarId, FixEq>, FunsFormulas) {
+pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: Rc<Lts>) -> (IndexedVec<VarId, FixEq>, FunsFormulas) {
     let mut ctx = ConvContext {
-        lts,
+        lts: &lts,
         funcs: IndexedSet::default(),
         vars: IndexedSet::default(),
         scope_vars: HashSet::new(),
@@ -37,7 +38,7 @@ pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: &Lts) -> (IndexedVec<VarId, FixEq>, 
         ctx.sys.push(FixEq { fix_type: FixType::Min, expr });
     }
 
-    (ctx.sys, FunsFormulas::new(ctx.formulas))
+    (ctx.sys, FunsFormulas::with_generators(ctx.formulas))
 }
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
@@ -47,7 +48,7 @@ enum FunKind {
 }
 
 struct ConvContext<'a> {
-    lts: &'a Lts,
+    lts: &'a Rc<Lts>,
 
     // Maps each combination of box/diamond + act to a function id
     funcs: IndexedSet<FunId, (FunKind, &'a Act)>,
@@ -57,7 +58,7 @@ struct ConvContext<'a> {
     scope_vars: HashSet<VarId>,
 
     // Output uncomposed formulas
-    formulas: IndexedVec<FunId, IndexedVec<BasisElemId, Formula>>,
+    formulas: IndexedVec<FunId, Rc<dyn Fn(BasisElemId) -> Formula>>,
     // Output fixpoint equations
     sys: IndexedVec<VarId, FixEq>,
 }
@@ -78,30 +79,34 @@ impl<'a> ConvContext<'a> {
     }
 
     fn conv_modal(&mut self, fun_kind: FunKind, act: &'a Act, e: &'a MuCalc) -> Expr {
-        let label_matches = |label: &str| match act {
-            Act::True => true,
-            Act::Label(x) if x == label => true,
-            Act::NotLabel(x) if x != label => true,
-            _ => false,
-        };
-
-        let make_formula = |edges: &Vec<(String, StateId)>| {
-            let formulas = edges
-                .iter()
-                .filter(|&(label, _)| label_matches(label))
-                .map(|(_, node)| Formula::Atom(node.to_basis_elem(), VarId(0)))
-                .collect();
-            match fun_kind {
-                FunKind::Diamond => Formula::Or(formulas),
-                FunKind::Box => Formula::And(formulas),
-            }
-        };
-
         let fun = match self.funcs.get_index_of(&(fun_kind, act)) {
             Some(fun) => fun,
             None => {
                 self.funcs.insert((fun_kind, act));
-                self.formulas.push(self.lts.transitions.iter().map(make_formula).collect())
+
+                let act = act.clone();
+                let label_matches = move |label: &str| match &act {
+                    Act::True => true,
+                    Act::Label(x) if x == label => true,
+                    Act::NotLabel(x) if x != label => true,
+                    _ => false,
+                };
+
+                let make_formula = move |edges: &Vec<(String, StateId)>| {
+                    let formulas = edges
+                        .iter()
+                        .filter(|&(label, _)| label_matches(label))
+                        .map(|(_, node)| Formula::Atom(node.to_basis_elem(), VarId(0)))
+                        .collect();
+                    match fun_kind {
+                        FunKind::Diamond => Formula::Or(formulas),
+                        FunKind::Box => Formula::And(formulas),
+                    }
+                };
+
+                let lts = self.lts.clone();
+                self.formulas
+                    .push(Rc::new(move |b| make_formula(&lts.transitions[StateId(b.to_usize())])))
             }
         };
 

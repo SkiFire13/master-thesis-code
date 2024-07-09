@@ -7,14 +7,13 @@ use crate::{mucalc_to_fix, parse_alt, parse_mucalc};
 
 fn run_test(aut_path: &str, mucalc_path: &str, expected: bool) {
     let aut = std::fs::read_to_string(aut_path).unwrap();
-    let lts = parse_alt(&aut).unwrap();
+    let lts = Rc::new(parse_alt(&aut).unwrap());
 
     let mucalc = std::fs::read_to_string(mucalc_path).unwrap();
     let parse_mu_calc = parse_mucalc(&mucalc);
     let mucalc = parse_mu_calc.unwrap();
 
-    let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, &lts);
-
+    let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, lts.clone());
     let init_b = lts.first_state.to_basis_elem();
     let init_v = eqs.last_index().unwrap();
     let formulas = Rc::new(EqsFormulas::new(eqs, Rc::new(funs_formulas)));

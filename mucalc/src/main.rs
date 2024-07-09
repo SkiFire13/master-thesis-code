@@ -13,10 +13,10 @@ fn main() {
     let alt_file = std::fs::read_to_string(alt_path).expect("Failed to read alt file");
     let mucalc_file = std::fs::read_to_string(mucalc_path).expect("Failed to read mucalc file");
 
-    let lts = parse_alt(&alt_file).expect("Failed to parse alt file");
+    let lts = Rc::new(parse_alt(&alt_file).expect("Failed to parse alt file"));
     let mucalc = parse_mucalc(&mucalc_file).expect("Failed to parse mucalc file");
 
-    let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, &lts);
+    let (eqs, funs_formulas) = mucalc_to_fix(&mucalc, lts.clone());
     let init_b = lts.first_state.to_basis_elem();
     let init_v = eqs.last_index().unwrap();
     let formulas = Rc::new(EqsFormulas::new(eqs, Rc::new(funs_formulas)));
