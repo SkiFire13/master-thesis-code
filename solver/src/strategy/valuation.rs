@@ -167,6 +167,15 @@ fn subevaluation(
             break;
         }
 
+        // Optimization:
+        // If u has no predecessor there will be no path to prevent or force,
+        // so the only thing left to do is set the `relevant_before` of `u`.
+        // This can avoid an expensive `reach` call for `prevent_paths`.
+        if graph.predecessors_of(u).next().is_none() {
+            profiles[u].relevant_before.push(u);
+            continue;
+        }
+
         match graph.relevance_of(u).player() {
             Player::P0 => prevent_paths(&mut graph, w, u, profiles),
             Player::P1 => force_paths(&mut graph, w, u, profiles),
