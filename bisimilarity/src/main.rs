@@ -15,15 +15,15 @@ fn main() {
     let alt1_file = std::fs::read_to_string(alt1_path).expect("Failed to read first alt file");
     let alt2_file = std::fs::read_to_string(alt2_path).expect("Failed to read second alt file");
 
-    let lts1 = parse_alt(&alt1_file).expect("Failed to parse alt file");
-    let lts2 = parse_alt(&alt2_file).expect("Failed to parse alt file");
+    let lts1 = Rc::new(parse_alt(&alt1_file).expect("Failed to parse alt file"));
+    let lts2 = Rc::new(parse_alt(&alt2_file).expect("Failed to parse alt file"));
 
     let parse_state = |s: &str| StateId(s.parse().expect("Failed to parse state id"));
 
     let init1 = std::env::args().nth(3).map(|s| parse_state(&s)).unwrap_or(lts1.first_state);
     let init2 = std::env::args().nth(4).map(|s| parse_state(&s)).unwrap_or(lts1.first_state);
 
-    let (eqs, funs_formulas) = bisimilarity_to_fix(&lts1, &lts2);
+    let (eqs, funs_formulas) = bisimilarity_to_fix(lts1.clone(), lts2.clone());
 
     let formulas = Rc::new(EqsFormulas::new(eqs, Rc::new(funs_formulas)));
     let init_b = make_basis_elem(init1, init2, &lts1, &lts2);

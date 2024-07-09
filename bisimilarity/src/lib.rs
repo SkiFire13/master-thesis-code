@@ -1,19 +1,24 @@
+use std::rc::Rc;
+
 use mucalc::{Lts, StateId};
 use solver::index::{AsIndex, IndexedVec};
 use solver::symbolic::compose::FunsFormulas;
 use solver::symbolic::eq::{Expr, FixEq, FixType, FunId, VarId};
 use solver::symbolic::formula::{BasisElemId, Formula};
 
-pub fn bisimilarity_to_fix(lts1: &Lts, lts2: &Lts) -> (IndexedVec<VarId, FixEq>, FunsFormulas) {
+pub fn bisimilarity_to_fix(
+    lts1: Rc<Lts>,
+    lts2: Rc<Lts>,
+) -> (IndexedVec<VarId, FixEq>, FunsFormulas) {
     let eq = FixEq { fix_type: FixType::Max, expr: Expr::Fun(FunId(0), vec![Expr::Var(VarId(0))]) };
     let eqs = IndexedVec::from(vec![eq]);
 
-    let formulas = lts1
-        .transitions
-        .indexes()
-        .flat_map(|s1| lts2.transitions.indexes().map(move |s2| formula_for(s1, s2, lts1, lts2)))
-        .collect();
-    let funs_formulas = FunsFormulas::new(IndexedVec::from(vec![formulas]));
+    let generator: Rc<dyn Fn(BasisElemId) -> Formula> = Rc::new(move |b| {
+        let s1 = StateId(b.to_usize() / lts2.transitions.len());
+        let s2 = StateId(b.to_usize() % lts2.transitions.len());
+        formula_for(s1, s2, &lts1, &lts2)
+    });
+    let funs_formulas = FunsFormulas::with_generators(IndexedVec::from(vec![generator]));
 
     (eqs, funs_formulas)
 }
