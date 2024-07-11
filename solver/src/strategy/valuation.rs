@@ -160,6 +160,8 @@ fn subevaluation(
         profiles[v].most_relevant = w;
     }
 
+    let mut reach = Reach { stack: Vec::new(), set: Set::default() };
+
     // Iterate over K with descending relevance order, considering only those
     // nodes that have higher relevance than w.
     for &u in graph.k_nodes.iter().rev() {
@@ -177,8 +179,8 @@ fn subevaluation(
         }
 
         match graph.relevance_of(u).player() {
-            Player::P0 => prevent_paths(&mut graph, w, u, profiles),
-            Player::P1 => force_paths(&mut graph, w, u, profiles),
+            Player::P0 => prevent_paths(&mut graph, w, u, profiles, &mut reach),
+            Player::P1 => force_paths(&mut graph, w, u, profiles, &mut reach),
         }
     }
 
@@ -195,9 +197,10 @@ fn prevent_paths(
     w: NodeId,
     u: NodeId,
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
+    reach: &mut Reach,
 ) {
     // Find nodes that can reach w without going through u.
-    let u_set = reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
+    let u_set = reach.reach(w, |n| graph.predecessors_of(n).filter(|&v| v != u));
 
     // Update profiles of nodes whose path must go through u.
     for &v in graph.k_nodes.iter().filter(|&v| !u_set.contains(v)) {
@@ -219,12 +222,13 @@ fn force_paths(
     w: NodeId,
     u: NodeId,
     profiles: &mut IndexedVec<NodeId, PlayProfile>,
+    reach: &mut Reach,
 ) {
     // Find nodes that can reach u without going through w.
-    let u_set = reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
+    let u_set = reach.reach(u, |n| graph.predecessors_of(n).filter(|&v| v != w));
 
     // Update profiles of nodes whose path can go through u.
-    for &v in &u_set {
+    for &v in u_set {
         profiles[v].relevant_before.push(u);
     }
 
@@ -237,20 +241,42 @@ fn force_paths(
     }
 }
 
-fn reach<F, I>(start: NodeId, mut explore: F) -> Set<NodeId>
+struct Reach {
+    stack: Vec<NodeId>,
+    set: Set<NodeId>,
+}
+
+impl Reach {
+    fn reach<F, I>(&mut self, start: NodeId, mut explore: F) -> &Set<NodeId>
+    where
+        F: FnMut(NodeId) -> I,
+        I: Iterator<Item = NodeId>,
+    {
+        self.stack.push(start);
+        self.set.clear();
+        self.set.insert(start);
+
+        // DFS according to explore
+        while let Some(node) = self.stack.pop() {
+            explore(node).for_each(|next| {
+                if self.set.insert(next) {
+                    self.stack.push(next);
+                }
+            });
+        }
+
+        &self.set
+    }
+}
+
+fn reach<F, I>(start: NodeId, explore: F) -> Set<NodeId>
 where
     F: FnMut(NodeId) -> I,
     I: Iterator<Item = NodeId>,
 {
-    let mut stack = vec![start];
-    let mut set = Set::from_iter([start]);
-
-    // DFS according to explore
-    while let Some(node) = stack.pop() {
-        stack.extend(explore(node).filter(|&next| set.insert(next)));
-    }
-
-    set
+    let mut out = Reach { stack: Vec::new(), set: Set::default() };
+    out.reach(start, explore);
+    out.set
 }
 
 fn set_maximal_distances(

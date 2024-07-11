@@ -57,6 +57,16 @@ pub fn solve(b: BasisElemId, i: VarId, moves: Rc<EqsFormulas>) -> bool {
         // Update definitely winning/losing nodes.
         update_winning_sets(&mut game, &profiles, &mut final_strategy, &mut strategy);
 
+        // println!(
+        //     "p0: {}, p1: {}, edges: {}, w0: {}, w1: {}, took: {:?}",
+        //     game.p0.ids.len(),
+        //     game.p1.ids.len(),
+        //     game.p0.succs.iter().flatten().count() + game.p1.succs.iter().flatten().count(),
+        //     game.p0.w0.len() + game.p1.w0.len(),
+        //     game.p0.w1.len() + game.p1.w1.len(),
+        //     now.elapsed()
+        // );
+
         // Check if the initial node is definitely winning/losing after the update.
         match game.p0.win[NodeP0Id::INIT] {
             WinState::Win0 => return true,
