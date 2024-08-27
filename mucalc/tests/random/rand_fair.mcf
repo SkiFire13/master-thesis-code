@@ -1,0 +1,1 @@
+nu x. (mu y. (<0> true && <1> true && <2> true && <true> x) || <true> y)
