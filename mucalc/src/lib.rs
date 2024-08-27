@@ -18,16 +18,17 @@ pub struct Lts {
     pub transitions: IndexedVec<StateId, Vec<(String, StateId)>>,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Act {
     True,
     Label(String),
     NotLabel(String),
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct Var(pub String);
 
+#[derive(Debug)]
 pub enum MuCalc {
     Var(Var),
     Diamond(Act, Box<MuCalc>),

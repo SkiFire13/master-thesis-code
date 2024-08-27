@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use chumsky::error::Simple;
 use chumsky::primitive::{choice, end, just, none_of};
 use chumsky::recursive::recursive;
-use chumsky::text::{self, TextParser};
+use chumsky::text::{self, keyword, TextParser};
 use chumsky::Parser;
 use solver::index::IndexedVec;
 
@@ -64,6 +64,13 @@ pub fn parse_alt(source: &str) -> Result<Lts> {
     Ok(Lts { first_state, transitions })
 }
 
+fn unwrap_one_or<T>(f: impl Fn(Vec<T>) -> T + Clone) -> impl Fn(Vec<T>) -> T + Clone {
+    move |mut v| match v.len() {
+        1 => v.pop().unwrap(),
+        _ => f(v),
+    }
+}
+
 pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
     let expr = recursive(|expr| {
         let var = text::ident().map(Var).padded();
@@ -80,23 +87,21 @@ pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
         let var_atom = var.map(MuCalc::Var);
         let atom = choice((tt, ff, group, var_atom)).padded().boxed();
 
-        let modal = recursive(|modal| {
-            let diam_act = act.clone().delimited_by(just('<'), just('>')).padded();
-            let diam = diam_act.then(modal.clone()).map(|(l, e)| MuCalc::Diamond(l, Box::new(e)));
-            let boxx_act = act.delimited_by(just('['), just(']')).padded();
-            let boxx = boxx_act.then(modal.clone()).map(|(l, e)| MuCalc::Box(l, Box::new(e)));
-            choice((diam, boxx, atom))
-        });
+        let mod_pre = |l, r, f| act.clone().delimited_by(just(l), just(r)).map(move |l| (f, l));
+        let diam = mod_pre('<', '>', MuCalc::Diamond as fn(_, _) -> _).boxed();
+        let boxx = mod_pre('[', ']', MuCalc::Box as fn(_, _) -> _).boxed();
+        let modal = choice((diam, boxx)).repeated().then(atom).foldr(|(f, l), e| f(l, Box::new(e)));
 
-        let and = modal.separated_by(just("&&").padded()).map(MuCalc::And);
-        let or = and.separated_by(just("||").padded()).map(MuCalc::Or);
+        let and = modal.boxed().separated_by(just("&&").padded()).map(unwrap_one_or(MuCalc::And));
+        let or = and.boxed().separated_by(just("||").padded()).map(unwrap_one_or(MuCalc::Or));
 
         let dot = just('.').padded();
-        let eta = |eta| text::keyword(eta).ignore_then(var).then_ignore(dot).then(or.clone());
-        let mu = eta("mu").map(|(var, expr)| MuCalc::Mu(var, Box::new(expr)));
-        let nu = eta("nu").map(|(var, expr)| MuCalc::Nu(var, Box::new(expr)));
+        let eta = |eta, f| keyword(eta).ignore_then(var).then_ignore(dot).map(move |v| (f, v));
+        let mu = eta("mu", MuCalc::Mu as fn(_, _) -> _).boxed();
+        let nu = eta("nu", MuCalc::Nu as fn(_, _) -> _).boxed();
+        let fix = choice((mu, nu)).repeated().then(or).foldr(|(f, v), e| f(v, Box::new(e)));
 
-        choice((mu, nu, or)).padded().boxed()
+        fix
     });
 
     expr.then_ignore(end()).parse(source)
