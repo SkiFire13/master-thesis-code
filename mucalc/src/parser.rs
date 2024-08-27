@@ -96,7 +96,7 @@ pub fn parse_mucalc<'a>(source: &str) -> Result<MuCalc, Vec<Simple<char>>> {
         let or = and.boxed().separated_by(just("||").padded()).map(unwrap_one_or(MuCalc::Or));
 
         let dot = just('.').padded();
-        let eta = |eta, f| keyword(eta).ignore_then(var).then_ignore(dot).map(move |v| (f, v));
+        let eta = |eta, f| keyword(eta).padded().then(var).then(dot).map(move |((_, v), _)| (f, v));
         let mu = eta("mu", MuCalc::Mu as fn(_, _) -> _).boxed();
         let nu = eta("nu", MuCalc::Nu as fn(_, _) -> _).boxed();
         let fix = choice((mu, nu)).repeated().then(or).foldr(|(f, v), e| f(v, Box::new(e)));
