@@ -4,7 +4,8 @@ members = [
     "solver",
     "mucalc",
     "parity",
-    "bisimilarity"
+    "bisimilarity",
+    "rand-lts",
 ]
 
 [profile.prof]
