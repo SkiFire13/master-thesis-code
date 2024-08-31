@@ -47,21 +47,8 @@ fn run_test(input: &str, sol: &str) {
     }
 }
 
-macro_rules! declare_test {
-    ($($name:ident),* $(,)?) => {
-        $(
-            #[test]
-            fn $name() {
-                let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/", stringify!($name)));
-                let sol = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/", stringify!($name), ".sol"));
-                run_test(input, sol)
-            }
-        )*
-    };
-}
-
 #[test]
-fn all() {
+fn test_all() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/");
     for e in std::fs::read_dir(dir).unwrap() {
         let e = e.unwrap();
@@ -80,13 +67,4 @@ fn all() {
             std::panic::resume_unwind(e);
         }
     }
-}
-
-declare_test! {
-    small,
-    vb001,
-    vb008,
-    vb013,
-    vb059,
-    vb133,
 }

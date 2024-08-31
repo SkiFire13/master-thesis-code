@@ -178,29 +178,8 @@ pub fn verify_valuation<S: Strategy>(
     }
 }
 
-macro_rules! declare_test {
-    ($($name:ident),* $(,)?) => {
-        $(
-            #[test]
-            fn $name() {
-                let input = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../parity/tests/", stringify!($name)));
-                let game = parse_test(input);
-                run_valuation_test(&game);
-            }
-        )*
-    };
-}
-
-declare_test! {
-    vb001,
-    vb008,
-    vb013,
-    vb059,
-    vb133,
-}
-
 #[test]
-fn all() {
+fn test_all() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../parity/tests/");
     for e in std::fs::read_dir(dir).unwrap() {
         let e = e.unwrap();
