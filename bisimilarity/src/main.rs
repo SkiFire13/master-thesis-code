@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
+use aut::{parse_aut, StateId};
 use bisimilarity::{bisimilarity_to_fix, make_basis_elem};
-use mucalc::{parse_alt, StateId};
 use solver::local::solve;
 use solver::symbolic::compose::EqsFormulas;
 use solver::symbolic::eq::VarId;
@@ -15,8 +15,8 @@ fn main() {
     let alt1_file = std::fs::read_to_string(alt1_path).expect("Failed to read first alt file");
     let alt2_file = std::fs::read_to_string(alt2_path).expect("Failed to read second alt file");
 
-    let lts1 = Rc::new(parse_alt(&alt1_file).expect("Failed to parse alt file"));
-    let lts2 = Rc::new(parse_alt(&alt2_file).expect("Failed to parse alt file"));
+    let lts1 = Rc::new(parse_aut(&alt1_file).expect("Failed to parse alt file"));
+    let lts2 = Rc::new(parse_aut(&alt2_file).expect("Failed to parse alt file"));
 
     let parse_state = |s: &str| StateId(s.parse().expect("Failed to parse state id"));
 

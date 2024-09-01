@@ -1,22 +1,12 @@
-use solver::index::IndexedVec;
-use solver::new_index;
-
 mod conv;
 mod parser;
 
 #[cfg(test)]
 mod test;
 
+pub use aut::{parse_aut, Lts, StateId};
 pub use conv::mucalc_to_fix;
-pub use parser::{parse_alt, parse_mucalc};
-
-new_index!(pub index StateId);
-new_index!(pub index LabelId);
-
-pub struct Lts {
-    pub first_state: StateId,
-    pub transitions: IndexedVec<StateId, Vec<(String, StateId)>>,
-}
+pub use parser::parse_mucalc;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Act {

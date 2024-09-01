@@ -1,10 +1,8 @@
 [package]
-name = "bisimilarity"
+name = "aut"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
 solver = { path = "../solver" }
-mucalc = { path = "../mucalc" } 
-aut = { path = "../aut" }

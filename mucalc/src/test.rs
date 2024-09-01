@@ -3,11 +3,11 @@ use std::rc::Rc;
 use solver::local::solve;
 use solver::symbolic::compose::EqsFormulas;
 
-use crate::{mucalc_to_fix, parse_alt, parse_mucalc};
+use crate::{mucalc_to_fix, parse_aut, parse_mucalc};
 
 fn run_test(aut_path: &str, mucalc_path: &str, expected: bool) {
     let aut = std::fs::read_to_string(aut_path).unwrap();
-    let lts = Rc::new(parse_alt(&aut).unwrap());
+    let lts = Rc::new(parse_aut(&aut).unwrap());
 
     let mucalc = std::fs::read_to_string(mucalc_path).unwrap();
     let parse_mu_calc = parse_mucalc(&mucalc);

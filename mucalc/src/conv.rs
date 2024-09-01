@@ -8,12 +8,6 @@ use solver::symbolic::formula::{BasisElemId, Formula};
 
 use crate::{Act, Lts, MuCalc, StateId, Var};
 
-impl StateId {
-    pub fn to_basis_elem(self) -> BasisElemId {
-        BasisElemId(self.to_usize())
-    }
-}
-
 pub fn mucalc_to_fix(mu_calc: &MuCalc, lts: Rc<Lts>) -> (IndexedVec<VarId, FixEq>, FunsFormulas) {
     let mut ctx = ConvContext {
         lts: &lts,
