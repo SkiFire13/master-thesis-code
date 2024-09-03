@@ -1,1 +1,1 @@
-mu x. <true>x || (mu y. <tau> y)
+mu x. <true>x || (mu y. <i> y)
